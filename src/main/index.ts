@@ -458,8 +458,12 @@ function registerIpcHandlers(): void {
     if (!job) throw new Error('Job not found.')
     if (!job.transcriptText.trim()) throw new Error('請先產生逐字稿。')
 
+    const glossary = db.getGlossary()
+    const transcriptWithGlossary = applyGlossary(job.transcriptText, glossary)
+
     const provider = createAIProvider(loadProviderConfig())
-    return provider.analyzeWithPrompt(job.transcriptText, prompt)
+    const result = await provider.analyzeWithPrompt(transcriptWithGlossary, prompt)
+    return applyGlossary(result, glossary)
   })
 }
 
