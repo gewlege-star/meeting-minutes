@@ -92,7 +92,7 @@ export class OpenAICompatibleProvider {
     const timestampedTranscript = formatTimestampedTranscript(segments) || transcript
 
     const responseFormat: OpenAI.ResponseFormatJSONSchema | OpenAI.ResponseFormatJSONObject =
-      this.config.provider === 'openai' || this.config.provider === 'groq'
+      this.config.provider === 'openai'
         ? {
             type: 'json_schema',
             json_schema: {
