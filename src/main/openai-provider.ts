@@ -142,6 +142,32 @@ export class OpenAICompatibleProvider {
 
     return parseSummaryBundle(content)
   }
+  async analyzeWithPrompt(transcript: string, prompt: string): Promise<string> {
+    if (!transcript.trim()) {
+      throw new Error('Transcript is empty, so there is nothing to analyze.')
+    }
+
+    const languageNote =
+      this.config.outputLanguage === 'auto'
+        ? 'Use the same language as the transcript.'
+        : `Always respond in ${OUTPUT_LANGUAGE_LABELS[this.config.outputLanguage]}.`
+
+    const completion = await this.client.chat.completions.create({
+      model: this.config.summaryModel,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a helpful assistant analyzing a meeting transcript. ${languageNote}`
+        },
+        {
+          role: 'user',
+          content: `${prompt}\n\n<transcript>\n${transcript}\n</transcript>`
+        }
+      ]
+    })
+
+    return completion.choices[0]?.message.content?.trim() ?? ''
+  }
 }
 
 function buildTranscriptionPrompt(language: OutputLanguage): string {

@@ -62,7 +62,6 @@ export class GeminiProvider {
     const timestampedTranscript = formatTimestampedTranscript(segments) || transcript
     const languageInstruction = buildLanguageInstruction(this.config.outputLanguage)
     const { sectionPrompts, showTimestamps } = this.config
-    const tsNote = showTimestamps ? ' Each item prefixed with [HH:MM:SS - HH:MM:SS] time range.' : ''
 
     const response = await this.client.models.generateContent({
       model: this.config.summaryModel,
@@ -107,6 +106,30 @@ export class GeminiProvider {
     })
 
     return parseSummaryBundle(extractGeminiText(response))
+  }
+
+  async analyzeWithPrompt(transcript: string, prompt: string): Promise<string> {
+    if (!transcript.trim()) {
+      throw new Error('Transcript is empty, so there is nothing to analyze.')
+    }
+
+    const languageInstruction = buildLanguageInstruction(this.config.outputLanguage)
+
+    const response = await this.client.models.generateContent({
+      model: this.config.summaryModel,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: `${prompt}\n\n${languageInstruction}\n\n<transcript>\n${transcript}\n</transcript>`
+            }
+          ]
+        }
+      ]
+    })
+
+    return extractGeminiText(response).trim()
   }
 
   private async transcribeChunk(chunkPath: string): Promise<string> {

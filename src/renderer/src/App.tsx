@@ -7,6 +7,7 @@ import {
   PROVIDER_DEFAULTS,
   PROVIDER_LABELS,
   type AppState,
+  type CustomTab,
   type GlossaryEntry,
   type OutputLanguage,
   type ProcessingJob,
@@ -45,12 +46,20 @@ function App(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<string>('plainSummary')
   const [currentAudioTime, setCurrentAudioTime] = useState(0)
 
+  // Custom tabs
+  const [customTabs, setCustomTabs] = useState<CustomTab[]>([])
+  const [customTabResults, setCustomTabResults] = useState<Record<string, string>>({})
+  const [promptDialogTabId, setPromptDialogTabId] = useState<string | null>(null)
+  const [promptDialogName, setPromptDialogName] = useState('')
+  const [promptDialogText, setPromptDialogText] = useState('')
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordingIdRef = useRef<string | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const pendingChunkWritesRef = useRef<Promise<void>[]>([])
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
   const glossaryDialogRef = useRef<HTMLDialogElement>(null)
+  const promptDialogRef = useRef<HTMLDialogElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const tabContentRef = useRef<HTMLDivElement>(null)
 
@@ -117,6 +126,7 @@ function App(): React.JSX.Element {
         sectionPrompts: nextState.settings.sectionPrompts,
         exportDir: nextState.settings.exportDir
       })
+      setCustomTabs(nextState.customTabs ?? [])
       setSelectedJobId((current) => {
         if (preferredJobId && nextState.jobs.some((job) => job.id === preferredJobId)) {
           return preferredJobId
@@ -437,6 +447,60 @@ function App(): React.JSX.Element {
     glossaryDialogRef.current?.showModal()
   }
 
+  function addCustomTab(): void {
+    const id = crypto.randomUUID()
+    const newTab: CustomTab = { id, name: `自訂 ${customTabs.length + 1}`, prompt: '' }
+    const updated = [...customTabs, newTab]
+    setCustomTabs(updated)
+    void window.api.saveCustomTabs(updated)
+    setActiveTab(id)
+  }
+
+  function deleteCustomTab(tabId: string): void {
+    const updated = customTabs.filter((t) => t.id !== tabId)
+    setCustomTabs(updated)
+    void window.api.saveCustomTabs(updated)
+    if (activeTab === tabId) {
+      setActiveTab('plainSummary')
+    }
+  }
+
+  function openPromptDialog(tabId: string): void {
+    const tab = customTabs.find((t) => t.id === tabId)
+    if (!tab) return
+    setPromptDialogTabId(tabId)
+    setPromptDialogName(tab.name)
+    setPromptDialogText(tab.prompt)
+    promptDialogRef.current?.showModal()
+  }
+
+  function savePromptDialog(): void {
+    if (!promptDialogTabId) return
+    const updated = customTabs.map((t) =>
+      t.id === promptDialogTabId ? { ...t, name: promptDialogName.trim() || t.name, prompt: promptDialogText } : t
+    )
+    setCustomTabs(updated)
+    void window.api.saveCustomTabs(updated)
+    promptDialogRef.current?.close()
+    setPromptDialogTabId(null)
+  }
+
+  async function generateCustomTab(tabId: string): Promise<void> {
+    if (!selectedJob) return
+    const tab = customTabs.find((t) => t.id === tabId)
+    if (!tab) return
+    if (!tab.prompt.trim()) {
+      setErrorMessage('請先設定提示詞。')
+      return
+    }
+
+    await runAction('AI 解析中...', async () => {
+      const result = await window.api.customAnalyze(selectedJob.id, tab.prompt)
+      const key = `${selectedJob.id}-${tabId}`
+      setCustomTabResults((prev) => ({ ...prev, [key]: result }))
+    })
+  }
+
   async function runAction(message: string, action: () => Promise<void>): Promise<void> {
     setBusyAction(message)
     setErrorMessage(null)
@@ -707,8 +771,7 @@ function App(): React.JSX.Element {
         </div>
       </dialog>
 
-      <dialog className="settings-dialog" ref={glossaryDialogRef}>
-        <div className="settings-dialog-header">
+      <dialog className="settings-dialog" ref={glossaryDialogRef}>        <div className="settings-dialog-header">
           <div>
             <h2>Glossary</h2>
             <p>Define term replacements applied to transcripts and summaries.</p>
@@ -792,6 +855,49 @@ function App(): React.JSX.Element {
             type="button"
           >
             Close
+          </button>
+        </div>
+      </dialog>
+
+      <dialog className="settings-dialog" ref={promptDialogRef}>
+        <div className="settings-dialog-header">
+          <div>
+            <h2>提示詞設定</h2>
+            <p>設定名稱與提示詞，AI 將根據提示詞分析逐字稿內容。</p>
+          </div>
+        </div>
+
+        <div className="settings-grid">
+          <label>
+            <span>名稱</span>
+            <input
+              value={promptDialogName}
+              onChange={(e) => setPromptDialogName(e.target.value)}
+              placeholder="自訂分析名稱"
+            />
+          </label>
+          <label className="settings-grid-wide">
+            <span>提示詞</span>
+            <textarea
+              className="prompt-textarea"
+              rows={6}
+              value={promptDialogText}
+              onChange={(e) => setPromptDialogText(e.target.value)}
+              placeholder="例如：請列出本次會議提到的所有數字與統計資料"
+            />
+          </label>
+        </div>
+
+        <div className="toolbar settings-dialog-toolbar">
+          <button className="primary-button" onClick={savePromptDialog} type="button">
+            確定
+          </button>
+          <button
+            className="ghost-button"
+            onClick={() => promptDialogRef.current?.close()}
+            type="button"
+          >
+            取消
           </button>
         </div>
       </dialog>
@@ -914,12 +1020,32 @@ function App(): React.JSX.Element {
                     {tab.label}
                   </button>
                 ))}
+                {customTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`tab-button tab-custom ${activeTab === tab.id ? 'active' : ''}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    type="button"
+                  >
+                    {tab.name}
+                    <span
+                      className="tab-close"
+                      role="button"
+                      aria-label="刪除"
+                      onClick={(e) => { e.stopPropagation(); deleteCustomTab(tab.id) }}
+                    >
+                      ×
+                    </span>
+                  </button>
+                ))}
+                <button className="tab-button tab-add" onClick={addCustomTab} type="button" title="新增自訂分析">
+                  +
+                </button>
               </div>
             </div>
 
             <div className="tab-content" ref={tabContentRef}>
-              {activeTab === 'transcript' ? (
-                <article className="transcript-panel">
+              {activeTab === 'transcript' ? (                <article className="transcript-panel">
                   <div className="summary-card-header">
                     <h3>Transcript</h3>
                     <button
@@ -955,6 +1081,56 @@ function App(): React.JSX.Element {
                   )}
                   {selectedJob.errorMessage ? <p className="error-inline">{selectedJob.errorMessage}</p> : null}
                 </article>
+              ) : customTabs.some((t) => t.id === activeTab) ? (
+                (() => {
+                  const tab = customTabs.find((t) => t.id === activeTab)!
+                  const resultKey = `${selectedJob.id}-${activeTab}`
+                  const result = customTabResults[resultKey] ?? ''
+                  return (
+                    <article className="summary-card">
+                      <div className="summary-card-header">
+                        <h3>{tab.name}</h3>
+                        <div className="toolbar">
+                          <button
+                            className="secondary-button"
+                            onClick={() => openPromptDialog(tab.id)}
+                            type="button"
+                          >
+                            提示詞
+                          </button>
+                          <button
+                            className="primary-button"
+                            disabled={Boolean(busyAction) || !selectedJob.transcriptText}
+                            onClick={() => void generateCustomTab(tab.id)}
+                            type="button"
+                          >
+                            產出
+                          </button>
+                          {result ? (
+                            <button
+                              className="link-button"
+                              onClick={() => void copyToClipboard(tab.name, result)}
+                              type="button"
+                            >
+                              Copy
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                      {result ? (
+                        <div className="summary-lines">
+                          {result.split('\n').map((line, i) => (
+                            <p key={i} className="summary-line">{line}</p>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="summary-content">
+                          {tab.prompt ? '按「產出」以使用 AI 解析逐字稿。' : '請先按「提示詞」設定分析指令。'}
+                        </div>
+                      )}
+                    </article>
+                  )
+                })()
               ) : (
                 (() => {
                   const section = summarySections.find((s) => s.key === activeTab) ?? summarySections[0]

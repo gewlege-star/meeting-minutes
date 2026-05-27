@@ -5,6 +5,7 @@ import {
   PROVIDER_DEFAULTS,
   DEFAULT_SECTION_PROMPTS,
   type AppSettingsView,
+  type CustomTab,
   type GlossaryEntry,
   type MediaSourceKind,
   type OutputLanguage,
@@ -382,6 +383,20 @@ export class AppDatabase {
     })
     runImport()
     return results
+  }
+
+  getCustomTabs(): CustomTab[] {
+    const raw = this.getRawSetting('customTabs')
+    if (!raw) return []
+    try {
+      return JSON.parse(raw) as CustomTab[]
+    } catch {
+      return []
+    }
+  }
+
+  saveCustomTabs(tabs: CustomTab[]): void {
+    this.setRawSetting('customTabs', JSON.stringify(tabs))
   }
 
   getRawSetting(key: string): string | null {

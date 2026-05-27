@@ -681,3 +681,56 @@ button:not(:disabled):hover {
   font-size: 13px;
   line-height: 1.4;
 }
+
+.prompt-textarea {
+  width: 100%;
+  resize: vertical;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: rgba(15, 23, 42, 0.5);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  font: inherit;
+}
+
+.tab-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.tab-close:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.tab-add {
+  font-size: 18px;
+  font-weight: 400;
+  padding: 4px 12px;
+  color: var(--text-secondary);
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+
+.tab-add:hover {
+  color: var(--text-primary);
+  border-color: rgba(148, 163, 184, 0.6);
+}

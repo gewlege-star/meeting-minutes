@@ -143,10 +143,17 @@ export interface SaveSettingsInput {
   exportDir: string
 }
 
+export interface CustomTab {
+  id: string
+  name: string
+  prompt: string
+}
+
 export interface AppState {
   settings: AppSettingsView
   jobs: ProcessingJob[]
   lastJobId: string | null
+  customTabs: CustomTab[]
 }
 
 export interface DesktopApi {
@@ -171,4 +178,6 @@ export interface DesktopApi {
   deleteGlossaryEntry: (id: string) => Promise<void>
   importGlossaryCsv: () => Promise<GlossaryEntry[]>
   exportGlossaryCsv: () => Promise<string | null>
+  customAnalyze: (jobId: string, prompt: string) => Promise<string>
+  saveCustomTabs: (tabs: CustomTab[]) => Promise<void>
 }

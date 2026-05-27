@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-import type { DesktopApi, SaveSettingsInput } from '../shared/contracts'
+import type { CustomTab, DesktopApi, SaveSettingsInput } from '../shared/contracts'
 
 const api: DesktopApi = {
   getAppState: () => ipcRenderer.invoke('app:get-state'),
@@ -28,7 +28,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke('glossary:update', id, sourceTerm, targetTerm),
   deleteGlossaryEntry: (id) => ipcRenderer.invoke('glossary:delete', id),
   importGlossaryCsv: () => ipcRenderer.invoke('glossary:import-csv'),
-  exportGlossaryCsv: () => ipcRenderer.invoke('glossary:export-csv')
+  exportGlossaryCsv: () => ipcRenderer.invoke('glossary:export-csv'),
+  customAnalyze: (jobId: string, prompt: string) =>
+    ipcRenderer.invoke('custom-tab:analyze', jobId, prompt),
+  saveCustomTabs: (tabs: CustomTab[]) => ipcRenderer.invoke('custom-tab:save', tabs)
 }
 
 if (process.contextIsolated) {

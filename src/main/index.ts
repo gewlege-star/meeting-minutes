@@ -6,7 +6,7 @@ import { createReadStream } from 'fs'
 import { mkdir, readFile, stat, writeFile } from 'fs/promises'
 
 import icon from '../../resources/icon.png?asset'
-import type { SaveSettingsInput } from '../shared/contracts'
+import type { SaveSettingsInput, CustomTab } from '../shared/contracts'
 import { AppDatabase, type ProviderConfig } from './database'
 import { createAIProvider } from './ai-provider'
 import { createAudioChunks, ensureNormalizedAudio } from './media'
@@ -175,7 +175,8 @@ function registerIpcHandlers(): void {
     return {
       settings: db.getSettingsView(hasEncryptedApiKey(db)),
       jobs: db.getJobs(),
-      lastJobId: db.getRawSetting('lastJobId') || null
+      lastJobId: db.getRawSetting('lastJobId') || null,
+      customTabs: db.getCustomTabs()
     }
   })
 
@@ -421,8 +422,7 @@ function registerIpcHandlers(): void {
     return requireDatabase().getGlossary()
   })
 
-  ipcMain.handle('glossary:export-csv', async () => {
-    const db = requireDatabase()
+  ipcMain.handle('glossary:export-csv', async () => {    const db = requireDatabase()
     const glossary = db.getGlossary()
     if (glossary.length === 0) {
       return null
@@ -446,6 +446,20 @@ function registerIpcHandlers(): void {
     await mkdir(dirname(result.filePath), { recursive: true })
     await writeFile(result.filePath, '\uFEFF' + csvLines.join('\n'), 'utf8')
     return result.filePath
+  })
+
+  ipcMain.handle('custom-tab:save', async (_, tabs: CustomTab[]) => {
+    requireDatabase().saveCustomTabs(tabs)
+  })
+
+  ipcMain.handle('custom-tab:analyze', async (_, jobId: string, prompt: string) => {
+    const db = requireDatabase()
+    const job = db.getJob(jobId)
+    if (!job) throw new Error('Job not found.')
+    if (!job.transcriptText.trim()) throw new Error('請先產生逐字稿。')
+
+    const provider = createAIProvider(loadProviderConfig())
+    return provider.analyzeWithPrompt(job.transcriptText, prompt)
   })
 }
 
