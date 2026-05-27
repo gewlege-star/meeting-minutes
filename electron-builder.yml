@@ -1,0 +1,34 @@
+appId: com.meetingminutes.app
+productName: Meeting Minutes
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asarUnpack:
+  - resources/**
+  - node_modules/ffmpeg-static/**
+win:
+  executableName: meetingminutes
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+mac:
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSCameraUsageDescription: Meeting Minutes does not need camera access.
+    NSMicrophoneUsageDescription: Meeting Minutes needs microphone access to record audio.
+    NSDocumentsFolderUsageDescription: Meeting Minutes lets you import files from your Documents folder.
+    NSDownloadsFolderUsageDescription: Meeting Minutes lets you export transcripts and summaries to Downloads.
+  notarize: false
+dmg:
+  artifactName: ${name}-${version}.${ext}
+npmRebuild: false
