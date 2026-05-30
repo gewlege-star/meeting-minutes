@@ -193,31 +193,37 @@ function registerIpcHandlers(): void {
     return db.getSettingsView(getAllEncryptedApiKeys(db))
   })
 
-  ipcMain.handle('settings:fetch-models', async (_, provider: ProviderId, apiKey: string, baseUrl: string) => {
-    if (!apiKey) {
-      throw new Error('請提供 API 密鑰以獲取可用模型。')
-    }
-    try {
-      if (provider === 'gemini') {
-        const { GoogleGenAI } = require('@google/genai')
-        const client = new GoogleGenAI({ apiKey })
-        const response = await client.models.list()
-        const list = Array.isArray(response)
-          ? response
-          : (response && typeof response === 'object' && 'models' in response && Array.isArray(response.models)
-              ? response.models
-              : [])
-        return list.map((m: any) => m.name || m.id).filter(Boolean)
-      } else {
-        const { OpenAI } = require('openai')
-        const client = new OpenAI({ apiKey: apiKey, baseURL: baseUrl || undefined })
-        const response = await client.models.list()
-        return response.data.map((m: any) => m.id)
+  ipcMain.handle(
+    'settings:fetch-models',
+    async (_, provider: ProviderId, apiKey: string, baseUrl: string) => {
+      if (!apiKey) {
+        throw new Error('請提供 API 密鑰以獲取可用模型。')
       }
-    } catch (e: any) {
-      throw new Error(`獲取模型列表失敗: ${e.message}`)
+      try {
+        if (provider === 'gemini') {
+          const { GoogleGenAI } = require('@google/genai')
+          const client = new GoogleGenAI({ apiKey })
+          const response = await client.models.list()
+          const list = Array.isArray(response)
+            ? response
+            : response &&
+                typeof response === 'object' &&
+                'models' in response &&
+                Array.isArray(response.models)
+              ? response.models
+              : []
+          return list.map((m: any) => m.name || m.id).filter(Boolean)
+        } else {
+          const { OpenAI } = require('openai')
+          const client = new OpenAI({ apiKey: apiKey, baseURL: baseUrl || undefined })
+          const response = await client.models.list()
+          return response.data.map((m: any) => m.id)
+        }
+      } catch (e: any) {
+        throw new Error(`獲取模型列表失敗: ${e.message}`)
+      }
     }
-  })
+  )
 
   ipcMain.handle('media:import', async () => {
     const currentWindow = BrowserWindow.getFocusedWindow() ?? mainWindow
@@ -285,7 +291,10 @@ function registerIpcHandlers(): void {
       const normalizedPath = await ensureNormalizedAudio(job, requireDirectories())
       db.saveNormalizedPath(jobId, normalizedPath)
 
-      const txProvider = createAIProvider(loadProviderConfig('transcription'))
+      const txConfig = loadProviderConfig('transcription')
+      const glossaryForPrompt = db.getGlossary()
+      txConfig.glossaryTerms = glossaryForPrompt.map((e) => e.sourceTerm)
+      const txProvider = createAIProvider(txConfig)
       const chunkPaths = await createAudioChunks(jobId, normalizedPath, requireDirectories())
       const transcript = await txProvider.transcribeAudio(chunkPaths)
 
@@ -408,30 +417,36 @@ function registerIpcHandlers(): void {
     return `http://127.0.0.1:${mediaServerPort}/${Buffer.from(filePath).toString('base64url')}`
   })
 
-  ipcMain.handle('job:update-transcript', async (_, jobId: string, transcriptText: string, segments: any[]) => {
-    const db = requireDatabase()
-    const job = db.getJob(jobId)
-    if (!job) {
-      throw new Error('Job not found.')
+  ipcMain.handle(
+    'job:update-transcript',
+    async (_, jobId: string, transcriptText: string, segments: any[]) => {
+      const db = requireDatabase()
+      const job = db.getJob(jobId)
+      if (!job) {
+        throw new Error('Job not found.')
+      }
+      db.saveTranscript(jobId, { text: transcriptText, segments })
+      return db.getJob(jobId)!
     }
-    db.saveTranscript(jobId, { text: transcriptText, segments })
-    return db.getJob(jobId)!
-  })
+  )
 
-  ipcMain.handle('job:update-trimming', async (_, jobId: string, trimStart: number | null, trimEnd: number | null) => {
-    const db = requireDatabase()
-    const job = db.getJob(jobId)
-    if (!job) {
-      throw new Error('Job not found.')
+  ipcMain.handle(
+    'job:update-trimming',
+    async (_, jobId: string, trimStart: number | null, trimEnd: number | null) => {
+      const db = requireDatabase()
+      const job = db.getJob(jobId)
+      if (!job) {
+        throw new Error('Job not found.')
+      }
+      // If the trimming bounds changed, make sure we clear the previously normalized audio path so it gets regenerated!
+      if (job.normalizedPath) {
+        // By changing trimming, ensure_normalized will run Ffmpeg again to cut the correct part of the original sourcePath
+        db.saveNormalizedPath(jobId, null)
+      }
+      const updatedJob = db.saveTrimming(jobId, trimStart, trimEnd)
+      return updatedJob
     }
-    // If the trimming bounds changed, make sure we clear the previously normalized audio path so it gets regenerated!
-    if (job.normalizedPath) {
-      // By changing trimming, ensure_normalized will run Ffmpeg again to cut the correct part of the original sourcePath
-      db.saveNormalizedPath(jobId, null)
-    }
-    const updatedJob = db.saveTrimming(jobId, trimStart, trimEnd)
-    return updatedJob
-  })
+  )
 
   ipcMain.handle('job:correct-transcript', async (_, jobId: string) => {
     const db = requireDatabase()
@@ -481,9 +496,12 @@ function registerIpcHandlers(): void {
     return requireDatabase().addGlossaryEntry(id, sourceTerm, targetTerm)
   })
 
-  ipcMain.handle('glossary:update', async (_, id: string, sourceTerm: string, targetTerm: string) => {
-    return requireDatabase().updateGlossaryEntry(id, sourceTerm, targetTerm)
-  })
+  ipcMain.handle(
+    'glossary:update',
+    async (_, id: string, sourceTerm: string, targetTerm: string) => {
+      return requireDatabase().updateGlossaryEntry(id, sourceTerm, targetTerm)
+    }
+  )
 
   ipcMain.handle('glossary:delete', async (_, id: string) => {
     requireDatabase().deleteGlossaryEntry(id)
@@ -508,7 +526,8 @@ function registerIpcHandlers(): void {
     return requireDatabase().getGlossary()
   })
 
-  ipcMain.handle('glossary:export-csv', async () => {    const db = requireDatabase()
+  ipcMain.handle('glossary:export-csv', async () => {
+    const db = requireDatabase()
     const glossary = db.getGlossary()
     if (glossary.length === 0) {
       return null
@@ -606,9 +625,14 @@ function persistSettings(input: SaveSettingsInput): void {
 
 function loadProviderConfig(purpose: 'transcription' | 'summary'): ProviderConfig {
   const db = requireDatabase()
-  const provider = purpose === 'transcription'
-    ? ((db.getRawSetting('transcriptionProvider') as ProviderId) || (db.getRawSetting('provider') as ProviderId) || 'openai')
-    : ((db.getRawSetting('summaryProvider') as ProviderId) || (db.getRawSetting('provider') as ProviderId) || 'openai')
+  const provider =
+    purpose === 'transcription'
+      ? (db.getRawSetting('transcriptionProvider') as ProviderId) ||
+        (db.getRawSetting('provider') as ProviderId) ||
+        'openai'
+      : (db.getRawSetting('summaryProvider') as ProviderId) ||
+        (db.getRawSetting('provider') as ProviderId) ||
+        'openai'
 
   const encryptedApiKey = db.getEncryptedApiKey(provider)
 

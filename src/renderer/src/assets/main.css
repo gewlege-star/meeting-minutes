@@ -76,7 +76,9 @@ body {
   border-bottom: 2px solid transparent;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .tab-button:hover {
@@ -533,8 +535,6 @@ button:not(:disabled):hover {
   flex-shrink: 0;
 }
 
-
-
 .toolbar-toggle {
   margin-left: auto;
   font-size: 13px;
@@ -877,8 +877,7 @@ button:not(:disabled):hover {
   flex-shrink: 0;
 }
 
-
-.checkbox-label input[type="checkbox"] {
+.checkbox-label input[type='checkbox'] {
   width: 18px;
   height: 18px;
   accent-color: var(--panel-highlight, #3b82f6);
@@ -959,7 +958,9 @@ button:not(:disabled):hover {
   line-height: 1;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 
 .tab-close:hover {

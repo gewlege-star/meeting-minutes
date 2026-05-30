@@ -53,6 +53,7 @@ export interface ProviderConfig {
   showTimestamps: boolean
   identifySpeakers: boolean
   sectionPrompts: SectionPrompts
+  glossaryTerms?: string[]
 }
 
 export interface TranscriptPayload {
@@ -249,18 +250,33 @@ export class AppDatabase {
     const defaultGemini = PROVIDER_DEFAULTS.gemini
 
     return {
-      transcriptionProvider: (this.getRawSetting('transcriptionProvider') as ProviderId) || (this.getRawSetting('provider') as ProviderId) || 'openai',
-      summaryProvider: (this.getRawSetting('summaryProvider') as ProviderId) || (this.getRawSetting('provider') as ProviderId) || 'openai',
+      transcriptionProvider:
+        (this.getRawSetting('transcriptionProvider') as ProviderId) ||
+        (this.getRawSetting('provider') as ProviderId) ||
+        'openai',
+      summaryProvider:
+        (this.getRawSetting('summaryProvider') as ProviderId) ||
+        (this.getRawSetting('provider') as ProviderId) ||
+        'openai',
       apiKeysConfigured,
       openaiBaseUrl: this.getRawSetting(settingKey('openai', 'baseUrl')) ?? defaultOpenai.baseUrl,
       groqBaseUrl: this.getRawSetting(settingKey('groq', 'baseUrl')) ?? defaultGroq.baseUrl,
       geminiBaseUrl: this.getRawSetting(settingKey('gemini', 'baseUrl')) ?? defaultGemini.baseUrl,
-      openaiTranscriptionModel: this.getRawSetting(settingKey('openai', 'transcriptionModel')) ?? defaultOpenai.transcriptionModel,
-      groqTranscriptionModel: this.getRawSetting(settingKey('groq', 'transcriptionModel')) ?? defaultGroq.transcriptionModel,
-      geminiTranscriptionModel: this.getRawSetting(settingKey('gemini', 'transcriptionModel')) ?? defaultGemini.transcriptionModel,
-      openaiSummaryModel: this.getRawSetting(settingKey('openai', 'summaryModel')) ?? defaultOpenai.summaryModel,
-      groqSummaryModel: this.getRawSetting(settingKey('groq', 'summaryModel')) ?? defaultGroq.summaryModel,
-      geminiSummaryModel: this.getRawSetting(settingKey('gemini', 'summaryModel')) ?? defaultGemini.summaryModel,
+      openaiTranscriptionModel:
+        this.getRawSetting(settingKey('openai', 'transcriptionModel')) ??
+        defaultOpenai.transcriptionModel,
+      groqTranscriptionModel:
+        this.getRawSetting(settingKey('groq', 'transcriptionModel')) ??
+        defaultGroq.transcriptionModel,
+      geminiTranscriptionModel:
+        this.getRawSetting(settingKey('gemini', 'transcriptionModel')) ??
+        defaultGemini.transcriptionModel,
+      openaiSummaryModel:
+        this.getRawSetting(settingKey('openai', 'summaryModel')) ?? defaultOpenai.summaryModel,
+      groqSummaryModel:
+        this.getRawSetting(settingKey('groq', 'summaryModel')) ?? defaultGroq.summaryModel,
+      geminiSummaryModel:
+        this.getRawSetting(settingKey('gemini', 'summaryModel')) ?? defaultGemini.summaryModel,
       outputLanguage: this.getOutputLanguage(),
       showTimestamps: this.getShowTimestamps(),
       identifySpeakers: this.getIdentifySpeakers(),
@@ -409,7 +425,9 @@ export class AppDatabase {
 
   updateGlossaryEntry(id: string, sourceTerm: string, targetTerm: string): GlossaryEntry {
     this.db
-      .prepare('UPDATE glossary SET source_term = @source_term, target_term = @target_term WHERE id = @id')
+      .prepare(
+        'UPDATE glossary SET source_term = @source_term, target_term = @target_term WHERE id = @id'
+      )
       .run({ id, source_term: sourceTerm, target_term: targetTerm })
     const row = this.db.prepare('SELECT created_at FROM glossary WHERE id = ?').get(id) as
       | { created_at: string }
@@ -431,8 +449,18 @@ export class AppDatabase {
     const runImport = this.db.transaction(() => {
       for (const entry of entries) {
         const id = crypto.randomUUID()
-        insert.run({ id, source_term: entry.sourceTerm, target_term: entry.targetTerm, created_at: now })
-        results.push({ id, sourceTerm: entry.sourceTerm, targetTerm: entry.targetTerm, createdAt: now })
+        insert.run({
+          id,
+          source_term: entry.sourceTerm,
+          target_term: entry.targetTerm,
+          created_at: now
+        })
+        results.push({
+          id,
+          sourceTerm: entry.sourceTerm,
+          targetTerm: entry.targetTerm,
+          createdAt: now
+        })
       }
     })
     runImport()
@@ -556,7 +584,8 @@ function mapJobRow(row: JobRow): ProcessingJob {
     transcriptSegments,
     summary,
     errorMessage: row.error_message,
-    trimStart: row.trim_start !== undefined && row.trim_start !== null ? Number(row.trim_start) : null,
+    trimStart:
+      row.trim_start !== undefined && row.trim_start !== null ? Number(row.trim_start) : null,
     trimEnd: row.trim_end !== undefined && row.trim_end !== null ? Number(row.trim_end) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at

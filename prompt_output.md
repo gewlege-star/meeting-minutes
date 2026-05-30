@@ -1,8 +1,10 @@
 # Job: 2026-05-29 1.m4a
+
 Job ID: c1ae4cb2-7e10-4eab-982d-3e5078aeb3a7
 Status: complete
 
 ## Raw Transcript Text
+
 ```
 好 我跟你講
 你不好看一下 平事例 那個6月3號有沒有會
@@ -1840,10 +1842,12 @@ It is a little bit more than the
 ```
 
 ## Adaptive Summary Tab Info
+
 - ID: fe92eba0-0d8c-4f35-912f-a6b3e2f429c7
 - Name: Adaptive Summary
 
 ### Tab Prompt Template:
+
 ```text
 Description
 Great for meetings, interviews, lectures. Get a clear summary that adapts to your content.
@@ -1858,11 +1862,14 @@ Tip: If you need a specific format for certain scenarios, such as medical (e.g.,
 ```
 
 ## Custom Tab Results
+
 ### Result for key: c1ae4cb2-7e10-4eab-982d-3e5078aeb3a7-fe92eba0-0d8c-4f35-912f-a6b3e2f429c7
+
 ```text
 以下是會議錄音文字稿（已去除標記與指示文字，僅保留原始發言內容）：
 
 ```
+
 好 我跟你講
 你不好看一下 平事例 那個6月3號有沒有會
 你看 董寧說他今天所想要提早開月會
@@ -2073,5 +2080,7 @@ ok 因为这部分的解隔的部分 那一部分。
 好, 我们会支持JS的生理介入摆盘。
 可能会有一个...
 应该要输入完之后会出现一个顺
+
 ```
 
+```

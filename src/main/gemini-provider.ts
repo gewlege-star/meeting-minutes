@@ -58,7 +58,10 @@ export class GeminiProvider {
     return { text, segments: transcriptSegments }
   }
 
-  async summarizeTranscript(transcript: string, segments: TranscriptSegment[]): Promise<SummaryBundle> {
+  async summarizeTranscript(
+    transcript: string,
+    segments: TranscriptSegment[]
+  ): Promise<SummaryBundle> {
     if (!transcript.trim()) {
       throw new Error('Transcript is empty, so there is nothing to summarize.')
     }
@@ -115,7 +118,10 @@ export class GeminiProvider {
     return extractGeminiText(response).trim()
   }
 
-  async correctTranscript(transcript: string, segments: TranscriptSegment[]): Promise<TranscriptPayload> {
+  async correctTranscript(
+    transcript: string,
+    segments: TranscriptSegment[]
+  ): Promise<TranscriptPayload> {
     if (!transcript.trim()) {
       throw new Error('Transcript is empty, so there is nothing to correct.')
     }
@@ -155,11 +161,12 @@ export class GeminiProvider {
 
   private async transcribeChunk(chunkPath: string): Promise<string> {
     const audioBytes = await readFile(chunkPath)
-    const languageInstruction = this.config.outputLanguage === 'auto'
-      ? 'Keep the original language.'
-      : this.config.outputLanguage === 'zh-TW'
-        ? 'Output must be exclusively in Taiwanese Traditional Chinese (繁體中文/正體中文), using Taiwan local terms. Never output Simplified Chinese characters.'
-        : `Output in ${OUTPUT_LANGUAGE_LABELS[this.config.outputLanguage]}.`
+    const languageInstruction =
+      this.config.outputLanguage === 'auto'
+        ? 'Keep the original language.'
+        : this.config.outputLanguage === 'zh-TW'
+          ? 'Output must be exclusively in Taiwanese Traditional Chinese (繁體中文/正體中文), using Taiwan local terms. Never output Simplified Chinese characters.'
+          : `Output in ${OUTPUT_LANGUAGE_LABELS[this.config.outputLanguage]}.`
     const speakerInstruction = this.config.identifySpeakers
       ? 'Identify and label different speakers (e.g., Speaker 1:, Speaker 2:).'
       : ''
@@ -177,7 +184,9 @@ export class GeminiProvider {
                 languageInstruction,
                 speakerInstruction,
                 'Do not summarize.'
-              ].filter(Boolean).join(' ')
+              ]
+                .filter(Boolean)
+                .join(' ')
             },
             {
               inlineData: {

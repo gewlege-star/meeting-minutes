@@ -117,7 +117,8 @@ export interface SectionPrompts {
 export const DEFAULT_SECTION_PROMPTS: SectionPrompts = {
   plainSummary: 'A concise 3-5 sentence paragraph summarising the overall meeting discussion.',
   meetingMinutes: 'Detailed chronological notes of topics discussed and who said what.',
-  actionItems: 'A newline-separated list of tasks and follow-ups, include owner and deadline if mentioned.',
+  actionItems:
+    'A newline-separated list of tasks and follow-ups, include owner and deadline if mentioned.',
   keyDecisions: 'A newline-separated list of important decisions made during the meeting.',
   nextSteps: 'A newline-separated list of follow-up activities and planned actions.'
 }
@@ -196,7 +197,11 @@ export interface DesktopApi {
   saveLastJobId: (jobId: string | null) => Promise<void>
   getGlossary: () => Promise<GlossaryEntry[]>
   addGlossaryEntry: (sourceTerm: string, targetTerm: string) => Promise<GlossaryEntry>
-  updateGlossaryEntry: (id: string, sourceTerm: string, targetTerm: string) => Promise<GlossaryEntry>
+  updateGlossaryEntry: (
+    id: string,
+    sourceTerm: string,
+    targetTerm: string
+  ) => Promise<GlossaryEntry>
   deleteGlossaryEntry: (id: string) => Promise<void>
   importGlossaryCsv: () => Promise<GlossaryEntry[]>
   exportGlossaryCsv: () => Promise<string | null>
@@ -205,8 +210,20 @@ export interface DesktopApi {
   getCustomTabResults: () => Promise<Record<string, string>>
   saveCustomTabResults: (results: Record<string, string>) => Promise<void>
   writeClipboard: (text: string) => Promise<void>
-  updateTranscript: (jobId: string, transcriptText: string, segments: TranscriptSegment[]) => Promise<ProcessingJob>
+  updateTranscript: (
+    jobId: string,
+    transcriptText: string,
+    segments: TranscriptSegment[]
+  ) => Promise<ProcessingJob>
   correctTranscript: (jobId: string) => Promise<ProcessingJob>
-  updateJobTrimming: (jobId: string, trimStart: number | null, trimEnd: number | null) => Promise<ProcessingJob>
-  fetchModelsByProvider: (provider: ProviderId, apiKey: string, baseUrl: string) => Promise<string[]>
+  updateJobTrimming: (
+    jobId: string,
+    trimStart: number | null,
+    trimEnd: number | null
+  ) => Promise<ProcessingJob>
+  fetchModelsByProvider: (
+    provider: ProviderId,
+    apiKey: string,
+    baseUrl: string
+  ) => Promise<string[]>
 }

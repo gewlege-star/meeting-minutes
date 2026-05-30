@@ -51,7 +51,11 @@ function App(): React.JSX.Element {
   const [glossarySource, setGlossarySource] = useState('')
   const [glossaryTarget, setGlossaryTarget] = useState('')
   const [glossarySearch, setGlossarySearch] = useState('')
-  const [selectionPopup, setSelectionPopup] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [selectionPopup, setSelectionPopup] = useState<{
+    text: string
+    x: number
+    y: number
+  } | null>(null)
   const [hideTimestamps, setHideTimestamps] = useState(false)
   const [hideSpeakers, setHideSpeakers] = useState(false)
   const [showOnlyConfirmed, setShowLowConfidenceOnly] = useState(false)
@@ -138,7 +142,10 @@ function App(): React.JSX.Element {
     }
     setActiveTab('transcript')
     setTabSearchQuery('')
-    window.api.getAudioUrl(selectedJobId).then(setAudioUrl).catch(() => setAudioUrl(null))
+    window.api
+      .getAudioUrl(selectedJobId)
+      .then(setAudioUrl)
+      .catch(() => setAudioUrl(null))
     void window.api.saveLastJobId(selectedJobId)
   }, [selectedJobId])
 
@@ -250,10 +257,21 @@ function App(): React.JSX.Element {
   }
 
   async function refreshModels(type: 'transcription' | 'summary'): Promise<void> {
-    const providerId = type === 'transcription' ? settingsForm.transcriptionProvider : settingsForm.summaryProvider
-    const apiKeyKey = providerId === 'openai' ? 'openaiApiKey' : providerId === 'groq' ? 'groqApiKey' : 'geminiApiKey'
+    const providerId =
+      type === 'transcription' ? settingsForm.transcriptionProvider : settingsForm.summaryProvider
+    const apiKeyKey =
+      providerId === 'openai'
+        ? 'openaiApiKey'
+        : providerId === 'groq'
+          ? 'groqApiKey'
+          : 'geminiApiKey'
     const apiKeyVal = settingsForm[apiKeyKey] || ''
-    const baseUrlKey = providerId === 'openai' ? 'openaiBaseUrl' : providerId === 'groq' ? 'groqBaseUrl' : 'geminiBaseUrl'
+    const baseUrlKey =
+      providerId === 'openai'
+        ? 'openaiBaseUrl'
+        : providerId === 'groq'
+          ? 'groqBaseUrl'
+          : 'geminiBaseUrl'
     const baseUrlVal = settingsForm[baseUrlKey] || ''
 
     await runAction('Fetching available models...', async () => {
@@ -409,7 +427,9 @@ function App(): React.JSX.Element {
   async function saveEditingSegment(): Promise<void> {
     if (editingSegmentIndex === null || !selectedJob) return
 
-    const currentSegment = selectedJob.transcriptSegments.find((s) => s.index === editingSegmentIndex)
+    const currentSegment = selectedJob.transcriptSegments.find(
+      (s) => s.index === editingSegmentIndex
+    )
     let nextSegments = [...selectedJob.transcriptSegments]
 
     if (currentSegment) {
@@ -466,11 +486,7 @@ function App(): React.JSX.Element {
     const nextText = nextSegments.map((s) => s.text).join('\n')
 
     try {
-      const updatedJob = await window.api.updateTranscript(
-        selectedJob.id,
-        nextText,
-        nextSegments
-      )
+      const updatedJob = await window.api.updateTranscript(selectedJob.id, nextText, nextSegments)
       setAppState((current) => {
         if (!current) return current
         return {
@@ -577,16 +593,24 @@ function App(): React.JSX.Element {
 
     // Duplicate check: same sourceTerm already exists (unless editing that very entry)
     const duplicate = glossary.find(
-      (e) => e.sourceTerm.toLowerCase() === glossarySource.trim().toLowerCase() && e.id !== glossaryEditId
+      (e) =>
+        e.sourceTerm.toLowerCase() === glossarySource.trim().toLowerCase() &&
+        e.id !== glossaryEditId
     )
     if (duplicate) {
-      setErrorMessage(`「${glossarySource.trim()}」已存在於 Glossary 中（目標：${duplicate.targetTerm}）。如需修改，請先編輯該項目。`)
+      setErrorMessage(
+        `「${glossarySource.trim()}」已存在於 Glossary 中（目標：${duplicate.targetTerm}）。如需修改，請先編輯該項目。`
+      )
       return false
     }
 
     try {
       if (glossaryEditId) {
-        await window.api.updateGlossaryEntry(glossaryEditId, glossarySource.trim(), glossaryTarget.trim())
+        await window.api.updateGlossaryEntry(
+          glossaryEditId,
+          glossarySource.trim(),
+          glossaryTarget.trim()
+        )
       } else {
         await window.api.addGlossaryEntry(glossarySource.trim(), glossaryTarget.trim())
       }
@@ -684,7 +708,9 @@ function App(): React.JSX.Element {
   function savePromptDialog(): void {
     if (!promptDialogTabId) return
     const updated = customTabs.map((t) =>
-      t.id === promptDialogTabId ? { ...t, name: promptDialogName.trim() || t.name, prompt: promptDialogText } : t
+      t.id === promptDialogTabId
+        ? { ...t, name: promptDialogName.trim() || t.name, prompt: promptDialogText }
+        : t
     )
     setCustomTabs(updated)
     void window.api.saveCustomTabs(updated)
@@ -782,16 +808,24 @@ function App(): React.JSX.Element {
             <h2>AI Settings</h2>
             <p>Choose OpenAI, Groq, or Gemini for transcription and summary generation.</p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+          <div
+            style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}
+          >
             <span
               className={`pill ${appState?.settings.apiKeysConfigured[settingsForm.transcriptionProvider] ? 'pill-success' : 'pill-muted'}`}
             >
-              Tx Key: {appState?.settings.apiKeysConfigured[settingsForm.transcriptionProvider] ? 'saved' : 'missing'}
+              Tx Key:{' '}
+              {appState?.settings.apiKeysConfigured[settingsForm.transcriptionProvider]
+                ? 'saved'
+                : 'missing'}
             </span>
             <span
               className={`pill ${appState?.settings.apiKeysConfigured[settingsForm.summaryProvider] ? 'pill-success' : 'pill-muted'}`}
             >
-              Sum Key: {appState?.settings.apiKeysConfigured[settingsForm.summaryProvider] ? 'saved' : 'missing'}
+              Sum Key:{' '}
+              {appState?.settings.apiKeysConfigured[settingsForm.summaryProvider]
+                ? 'saved'
+                : 'missing'}
             </span>
           </div>
         </div>
@@ -835,19 +869,42 @@ function App(): React.JSX.Element {
             </select>
           </label>
 
-          <div className="settings-grid-wide" style={{ marginTop: '4px', borderTop: '1px solid var(--panel-border)', paddingTop: '14px' }}>
+          <div
+            className="settings-grid-wide"
+            style={{
+              marginTop: '4px',
+              borderTop: '1px solid var(--panel-border)',
+              paddingTop: '14px'
+            }}
+          >
             <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 'bold' }}>API Keys</h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
               {(['openai', 'groq', 'gemini'] as const).map((prov) => {
-                const keyProp = prov === 'openai' ? 'openaiApiKey' : prov === 'groq' ? 'groqApiKey' : 'geminiApiKey'
+                const keyProp =
+                  prov === 'openai'
+                    ? 'openaiApiKey'
+                    : prov === 'groq'
+                      ? 'groqApiKey'
+                      : 'geminiApiKey'
                 return (
                   <div key={prov} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
-                      {PROVIDER_LABELS[prov]} Key {appState?.settings.apiKeysConfigured[prov] ? '✅' : '❌'}
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        color: 'var(--text-secondary)'
+                      }}
+                    >
+                      {PROVIDER_LABELS[prov]} Key{' '}
+                      {appState?.settings.apiKeysConfigured[prov] ? '✅' : '❌'}
                     </span>
                     <input
                       type="password"
-                      placeholder={appState?.settings.apiKeysConfigured[prov] ? '已儲存 (填寫以變更)' : '尚未儲存'}
+                      placeholder={
+                        appState?.settings.apiKeysConfigured[prov]
+                          ? '已儲存 (填寫以變更)'
+                          : '尚未儲存'
+                      }
                       value={settingsForm[keyProp] || ''}
                       style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '13px' }}
                       onChange={(e) =>
@@ -858,7 +915,12 @@ function App(): React.JSX.Element {
                       <button
                         type="button"
                         className="link-button danger-text"
-                        style={{ fontSize: '11px', textAlign: 'left', marginTop: '2px', padding: 0 }}
+                        style={{
+                          fontSize: '11px',
+                          textAlign: 'left',
+                          marginTop: '2px',
+                          padding: 0
+                        }}
                         onClick={() => void clearStoredApiKeyByProvider(prov)}
                       >
                         清除已儲存
@@ -870,7 +932,10 @@ function App(): React.JSX.Element {
             </div>
           </div>
 
-          <label className="settings-grid-wide" style={{ borderTop: '1px solid var(--panel-border)', paddingTop: '14px' }}>
+          <label
+            className="settings-grid-wide"
+            style={{ borderTop: '1px solid var(--panel-border)', paddingTop: '14px' }}
+          >
             <span>Transcription model</span>
             <div className="model-select-row">
               <div className="searchable-select-container" style={{ flex: 1 }}>
@@ -878,7 +943,13 @@ function App(): React.JSX.Element {
                   type="text"
                   className="searchable-select-input"
                   placeholder="搜尋或自行輸入模型名稱…"
-                  value={txModelDropdownOpen ? txModelSearch : (settingsForm[`${settingsForm.transcriptionProvider}TranscriptionModel` as any] || '')}
+                  value={
+                    txModelDropdownOpen
+                      ? txModelSearch
+                      : settingsForm[
+                          `${settingsForm.transcriptionProvider}TranscriptionModel` as any
+                        ] || ''
+                  }
                   onFocus={() => {
                     setTxModelSearch('')
                     setTxModelDropdownOpen(true)
@@ -905,7 +976,8 @@ function App(): React.JSX.Element {
                             type="button"
                             className="searchable-select-item"
                             onMouseDown={() => {
-                              const prop = `${settingsForm.transcriptionProvider}TranscriptionModel` as any
+                              const prop =
+                                `${settingsForm.transcriptionProvider}TranscriptionModel` as any
                               setSettingsForm((current) => ({ ...current, [prop]: model }))
                             }}
                           >
@@ -940,7 +1012,11 @@ function App(): React.JSX.Element {
                   type="text"
                   className="searchable-select-input"
                   placeholder="搜尋或自行輸入模型名稱…"
-                  value={sumModelDropdownOpen ? sumModelSearch : (settingsForm[`${settingsForm.summaryProvider}SummaryModel` as any] || '')}
+                  value={
+                    sumModelDropdownOpen
+                      ? sumModelSearch
+                      : settingsForm[`${settingsForm.summaryProvider}SummaryModel` as any] || ''
+                  }
                   onFocus={() => {
                     setSumModelSearch('')
                     setSumModelDropdownOpen(true)
@@ -993,8 +1069,13 @@ function App(): React.JSX.Element {
             </span>
           </label>
 
-          <div className="settings-grid-wide" style={{ borderTop: '1px solid var(--panel-border)', paddingTop: '10px' }}>
-            <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 'bold' }}>Base URLs</h4>
+          <div
+            className="settings-grid-wide"
+            style={{ borderTop: '1px solid var(--panel-border)', paddingTop: '10px' }}
+          >
+            <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 'bold' }}>
+              Base URLs
+            </h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
               <label>
                 <span>OpenAI Base URL</span>
@@ -1002,7 +1083,9 @@ function App(): React.JSX.Element {
                   type="text"
                   value={settingsForm.openaiBaseUrl}
                   style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '13px' }}
-                  onChange={(e) => setSettingsForm((current) => ({ ...current, openaiBaseUrl: e.target.value }))}
+                  onChange={(e) =>
+                    setSettingsForm((current) => ({ ...current, openaiBaseUrl: e.target.value }))
+                  }
                 />
               </label>
               <label>
@@ -1011,7 +1094,9 @@ function App(): React.JSX.Element {
                   type="text"
                   value={settingsForm.groqBaseUrl}
                   style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '13px' }}
-                  onChange={(e) => setSettingsForm((current) => ({ ...current, groqBaseUrl: e.target.value }))}
+                  onChange={(e) =>
+                    setSettingsForm((current) => ({ ...current, groqBaseUrl: e.target.value }))
+                  }
                 />
               </label>
             </div>
@@ -1056,7 +1141,9 @@ function App(): React.JSX.Element {
                 setSettingsForm((current) => ({ ...current, showTimestamps: event.target.checked }))
               }
             />
-            <span>顯示時間區段 (Action items / Key decisions / Next steps 加上 [HH:MM:SS] 前綴)</span>
+            <span>
+              顯示時間區段 (Action items / Key decisions / Next steps 加上 [HH:MM:SS] 前綴)
+            </span>
           </label>
 
           <label className="checkbox-label">
@@ -1064,14 +1151,32 @@ function App(): React.JSX.Element {
               type="checkbox"
               checked={settingsForm.identifySpeakers}
               onChange={(event) =>
-                setSettingsForm((current) => ({ ...current, identifySpeakers: event.target.checked }))
+                setSettingsForm((current) => ({
+                  ...current,
+                  identifySpeakers: event.target.checked
+                }))
               }
             />
             <span>辨識發言者 (轉逐字稿時標註不同說話者)</span>
           </label>
           {settingsForm.identifySpeakers && settingsForm.transcriptionProvider !== 'gemini' && (
-            <div className="warning-banner" style={{ padding: '8px 12px', border: '1px solid', borderRadius: '8px', fontSize: '12px' }}>
-              ⚠️ 提醒：您目前為「轉錄」選擇的 {PROVIDER_LABELS[settingsForm.transcriptionProvider] || settingsForm.transcriptionProvider} / {settingsForm[`${settingsForm.transcriptionProvider}TranscriptionModel` as any] || '預設模型'} 不支援發言者識別 (Diarization)。如需發言者辨識，請使用 Gemini 或可產生 Diarization 的其餘支援模型，否則將無法自動貼上說話者標籤。
+            <div
+              className="warning-banner"
+              style={{
+                padding: '8px 12px',
+                border: '1px solid',
+                borderRadius: '8px',
+                fontSize: '12px'
+              }}
+            >
+              ⚠️ 提醒：您目前為「轉錄」選擇的{' '}
+              {PROVIDER_LABELS[settingsForm.transcriptionProvider] ||
+                settingsForm.transcriptionProvider}{' '}
+              /{' '}
+              {settingsForm[`${settingsForm.transcriptionProvider}TranscriptionModel` as any] ||
+                '預設模型'}{' '}
+              不支援發言者識別 (Diarization)。如需發言者辨識，請使用 Gemini 或可產生 Diarization
+              的其餘支援模型，否則將無法自動貼上說話者標籤。
             </div>
           )}
         </div>
@@ -1079,24 +1184,30 @@ function App(): React.JSX.Element {
         <details className="prompt-details">
           <summary>自訂各區塊提示詞 (Section Prompts)</summary>
           <div className="prompt-fields">
-            {(['plainSummary', 'meetingMinutes', 'actionItems', 'keyDecisions', 'nextSteps'] as const).map(
-              (key) => (
-                <label key={key}>
-                  <span>{SECTION_PROMPT_LABELS[key]}</span>
-                  <textarea
-                    rows={2}
-                    value={settingsForm.sectionPrompts[key]}
-                    placeholder={DEFAULT_SECTION_PROMPTS[key]}
-                    onChange={(event) =>
-                      setSettingsForm((current) => ({
-                        ...current,
-                        sectionPrompts: { ...current.sectionPrompts, [key]: event.target.value }
-                      }))
-                    }
-                  />
-                </label>
-              )
-            )}
+            {(
+              [
+                'plainSummary',
+                'meetingMinutes',
+                'actionItems',
+                'keyDecisions',
+                'nextSteps'
+              ] as const
+            ).map((key) => (
+              <label key={key}>
+                <span>{SECTION_PROMPT_LABELS[key]}</span>
+                <textarea
+                  rows={2}
+                  value={settingsForm.sectionPrompts[key]}
+                  placeholder={DEFAULT_SECTION_PROMPTS[key]}
+                  onChange={(event) =>
+                    setSettingsForm((current) => ({
+                      ...current,
+                      sectionPrompts: { ...current.sectionPrompts, [key]: event.target.value }
+                    }))
+                  }
+                />
+              </label>
+            ))}
             <button
               className="ghost-button"
               type="button"
@@ -1139,14 +1250,15 @@ function App(): React.JSX.Element {
         </div>
       </dialog>
 
-      <dialog className="settings-dialog" ref={glossaryDialogRef}>        <div className="settings-dialog-header">
+      <dialog className="settings-dialog" ref={glossaryDialogRef}>
+        {' '}
+        <div className="settings-dialog-header">
           <div>
             <h2>Glossary</h2>
             <p>Define term replacements applied to transcripts and summaries.</p>
           </div>
           <span className="pill">{glossary.length} entries</span>
         </div>
-
         <input
           type="search"
           className="tab-search-input"
@@ -1155,7 +1267,6 @@ function App(): React.JSX.Element {
           onChange={(e) => setGlossarySearch(e.target.value)}
           style={{ marginBottom: '10px' }}
         />
-
         <div className="glossary-form">
           <input
             placeholder="Source term (e.g. 新界)"
@@ -1169,13 +1280,19 @@ function App(): React.JSX.Element {
             onChange={(e) => setGlossaryTarget(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                void addOrUpdateGlossaryEntry().then((ok) => { if (ok) glossaryDialogRef.current?.close() })
+                void addOrUpdateGlossaryEntry().then((ok) => {
+                  if (ok) glossaryDialogRef.current?.close()
+                })
               }
             }}
           />
           <button
             className="secondary-button"
-            onClick={() => void addOrUpdateGlossaryEntry().then((ok) => { if (ok) glossaryDialogRef.current?.close() })}
+            onClick={() =>
+              void addOrUpdateGlossaryEntry().then((ok) => {
+                if (ok) glossaryDialogRef.current?.close()
+              })
+            }
             type="button"
           >
             {glossaryEditId ? 'Update' : 'Add'}
@@ -1186,41 +1303,40 @@ function App(): React.JSX.Element {
             </button>
           ) : null}
         </div>
-
         <div className="glossary-list">
           {glossary.length === 0 ? (
             <p className="empty-copy">No entries yet.</p>
           ) : (
             glossary
-              .filter((e) =>
-                !glossarySearch.trim() ||
-                e.sourceTerm.toLowerCase().includes(glossarySearch.toLowerCase()) ||
-                e.targetTerm.toLowerCase().includes(glossarySearch.toLowerCase())
+              .filter(
+                (e) =>
+                  !glossarySearch.trim() ||
+                  e.sourceTerm.toLowerCase().includes(glossarySearch.toLowerCase()) ||
+                  e.targetTerm.toLowerCase().includes(glossarySearch.toLowerCase())
               )
               .map((entry) => (
-              <div key={entry.id} className="glossary-item">
-                <span className="glossary-term">{entry.sourceTerm}</span>
-                <span className="glossary-arrow">→</span>
-                <span className="glossary-term">{entry.targetTerm}</span>
-                <button
-                  className="link-button"
-                  onClick={() => startEditGlossary(entry)}
-                  type="button"
-                >
-                  Edit
-                </button>
-                <button
-                  className="link-button danger-text"
-                  onClick={() => void deleteGlossaryEntry(entry.id)}
-                  type="button"
-                >
-                  Delete
-                </button>
-              </div>
-            ))
+                <div key={entry.id} className="glossary-item">
+                  <span className="glossary-term">{entry.sourceTerm}</span>
+                  <span className="glossary-arrow">→</span>
+                  <span className="glossary-term">{entry.targetTerm}</span>
+                  <button
+                    className="link-button"
+                    onClick={() => startEditGlossary(entry)}
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="link-button danger-text"
+                    onClick={() => void deleteGlossaryEntry(entry.id)}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))
           )}
         </div>
-
         <div className="toolbar settings-dialog-toolbar">
           <button
             className="secondary-button"
@@ -1300,14 +1416,20 @@ function App(): React.JSX.Element {
             <input
               value={renameDialogValue}
               onChange={(e) => setRenameDialogValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void submitRenameDialog() }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submitRenameDialog()
+              }}
               placeholder="輸入新標題"
               autoFocus
             />
           </label>
         </div>
         <div className="toolbar settings-dialog-toolbar">
-          <button className="primary-button" onClick={() => void submitRenameDialog()} type="button">
+          <button
+            className="primary-button"
+            onClick={() => void submitRenameDialog()}
+            type="button"
+          >
             確定
           </button>
           <button
@@ -1326,14 +1448,18 @@ function App(): React.JSX.Element {
         </div>
         {/* Playback mini-toolbar */}
         {(() => {
-          const seg = editingSegmentIndex !== null
-            ? selectedJob?.transcriptSegments.find(s => s.index === editingSegmentIndex)
-            : null
+          const seg =
+            editingSegmentIndex !== null
+              ? selectedJob?.transcriptSegments.find((s) => s.index === editingSegmentIndex)
+              : null
           if (!seg || !audioUrl) return null
           const seekTo = (offset: number) => {
             const a = audioRef.current
             if (!a) return
-            const next = Math.min(seg.endSeconds, Math.max(seg.startSeconds, a.currentTime + offset))
+            const next = Math.min(
+              seg.endSeconds,
+              Math.max(seg.startSeconds, a.currentTime + offset)
+            )
             a.currentTime = next
           }
           const playSegment = () => {
@@ -1357,10 +1483,31 @@ function App(): React.JSX.Element {
           }
           return (
             <div className="edit-dialog-playback">
-              <span className="edit-dialog-ts">[{formatSec(seg.startSeconds)} – {formatSec(seg.endSeconds)}]</span>
-              <button className="ghost-button edit-dialog-ctrl" type="button" title="-15 秒" onClick={() => seekTo(-15)}>-15</button>
-              <button className="ghost-button edit-dialog-ctrl" type="button" title="+15 秒" onClick={() => seekTo(+15)}>+15</button>
-              <button className="ghost-button edit-dialog-ctrl" type="button" title={isAudioPlaying ? '暫停' : '播放此段'} onClick={playSegment}>
+              <span className="edit-dialog-ts">
+                [{formatSec(seg.startSeconds)} – {formatSec(seg.endSeconds)}]
+              </span>
+              <button
+                className="ghost-button edit-dialog-ctrl"
+                type="button"
+                title="-15 秒"
+                onClick={() => seekTo(-15)}
+              >
+                -15
+              </button>
+              <button
+                className="ghost-button edit-dialog-ctrl"
+                type="button"
+                title="+15 秒"
+                onClick={() => seekTo(+15)}
+              >
+                +15
+              </button>
+              <button
+                className="ghost-button edit-dialog-ctrl"
+                type="button"
+                title={isAudioPlaying ? '暫停' : '播放此段'}
+                onClick={playSegment}
+              >
                 {isAudioPlaying ? '⏸' : '▶'}
               </button>
               <button
@@ -1368,7 +1515,9 @@ function App(): React.JSX.Element {
                 type="button"
                 title={loopEditDialog ? '關閉循環' : '循環播放此段'}
                 onClick={toggleLoop}
-              >🔁</button>
+              >
+                🔁
+              </button>
             </div>
           )
         })()}
@@ -1386,18 +1535,30 @@ function App(): React.JSX.Element {
                   setEditingSegmentIndex(null)
                 }
               }}
-              style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '14px' }}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                fontFamily: 'inherit',
+                fontSize: '14px'
+              }}
               autoFocus
             />
           </label>
         </div>
         <div className="toolbar settings-dialog-toolbar">
-          <button className="primary-button" onClick={() => void saveEditingSegment()} type="button">
+          <button
+            className="primary-button"
+            onClick={() => void saveEditingSegment()}
+            type="button"
+          >
             儲存 (Enter)
           </button>
           <button
             className="ghost-button"
-            onClick={() => { editSegmentDialogRef.current?.close(); setEditingSegmentIndex(null) }}
+            onClick={() => {
+              editSegmentDialogRef.current?.close()
+              setEditingSegmentIndex(null)
+            }}
             type="button"
           >
             取消
@@ -1416,17 +1577,17 @@ function App(): React.JSX.Element {
           </div>
         ) : selectedJob ? (
           <div className="detail-view" onMouseUp={handleTextSelect}>
-           <div className="detail-sticky">
-             <div className="detail-header">
-               <div>
-                 <h2
-                   className="editable-title"
-                   onClick={() => renameJob(selectedJob.id)}
-                   title="點擊更改標題"
-                 >
-                   {selectedJob.sourceName}
-                 </h2>
-                 <div className="meta-row">
+            <div className="detail-sticky">
+              <div className="detail-header">
+                <div>
+                  <h2
+                    className="editable-title"
+                    onClick={() => renameJob(selectedJob.id)}
+                    title="點擊更改標題"
+                  >
+                    {selectedJob.sourceName}
+                  </h2>
+                  <div className="meta-row">
                     <span>{sourceLabel(selectedJob.sourceKind)}</span>
                     <span>{formatBytes(selectedJob.sourceSizeBytes)}</span>
                     <span>{formatDate(selectedJob.createdAt)}</span>
@@ -1494,8 +1655,30 @@ function App(): React.JSX.Element {
               </div>
 
               {audioUrl && selectedJob && (
-                <div className="audio-player-container" style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)', marginBottom: '6px' }}>
-                  <div className="audio-player" style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', margin: '2px 0', padding: '4px 8px' }}>
+                <div
+                  className="audio-player-container"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    padding: '6px 12px',
+                    background: 'rgba(255,255,255,0.02)',
+                    borderRadius: '8px',
+                    border: '1px dashed var(--border-color)',
+                    marginBottom: '6px'
+                  }}
+                >
+                  <div
+                    className="audio-player"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      width: '100%',
+                      margin: '2px 0',
+                      padding: '4px 8px'
+                    }}
+                  >
                     <button
                       className="ghost-button audio-ctrl-btn"
                       type="button"
@@ -1526,7 +1709,10 @@ function App(): React.JSX.Element {
                         const a = audioRef.current
                         if (a) {
                           setCurrentAudioTime(a.currentTime)
-                          if (segmentEndRef.current !== null && a.currentTime >= segmentEndRef.current) {
+                          if (
+                            segmentEndRef.current !== null &&
+                            a.currentTime >= segmentEndRef.current
+                          ) {
                             if (loopModeRef.current && segmentLoopStartRef.current !== null) {
                               a.currentTime = segmentLoopStartRef.current
                               void a.play()
@@ -1541,7 +1727,17 @@ function App(): React.JSX.Element {
                       onPause={() => setIsAudioPlaying(false)}
                     />
                   </div>
-                  <div className="trimming-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', fontSize: '12px' }}>
+                  <div
+                    className="trimming-controls"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                      fontSize: '12px'
+                    }}
+                  >
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
                         className="secondary-button"
@@ -1552,15 +1748,23 @@ function App(): React.JSX.Element {
                           if (a) {
                             const val = Number(a.currentTime.toFixed(1))
                             try {
-                              const updatedJob = await window.api.updateJobTrimming(selectedJob.id, val, selectedJob.trimEnd)
+                              const updatedJob = await window.api.updateJobTrimming(
+                                selectedJob.id,
+                                val,
+                                selectedJob.trimEnd
+                              )
                               setAppState((current) => {
                                 if (!current) return current
                                 return {
                                   ...current,
-                                  jobs: current.jobs.map((j) => (j.id === updatedJob.id ? updatedJob : j))
+                                  jobs: current.jobs.map((j) =>
+                                    j.id === updatedJob.id ? updatedJob : j
+                                  )
                                 }
                               })
-                              setInfoMessage(`已設定會議開始時間標記：${formatSec(val)}。請重新點擊「翻譯與分析」來應用此範圍。`)
+                              setInfoMessage(
+                                `已設定會議開始時間標記：${formatSec(val)}。請重新點擊「翻譯與分析」來應用此範圍。`
+                              )
                             } catch (err) {
                               setErrorMessage(formatError(err))
                             }
@@ -1578,15 +1782,23 @@ function App(): React.JSX.Element {
                           if (a) {
                             const val = Number(a.currentTime.toFixed(1))
                             try {
-                              const updatedJob = await window.api.updateJobTrimming(selectedJob.id, selectedJob.trimStart, val)
+                              const updatedJob = await window.api.updateJobTrimming(
+                                selectedJob.id,
+                                selectedJob.trimStart,
+                                val
+                              )
                               setAppState((current) => {
                                 if (!current) return current
                                 return {
                                   ...current,
-                                  jobs: current.jobs.map((j) => (j.id === updatedJob.id ? updatedJob : j))
+                                  jobs: current.jobs.map((j) =>
+                                    j.id === updatedJob.id ? updatedJob : j
+                                  )
                                 }
                               })
-                              setInfoMessage(`已設定會議暫停/結束標記：${formatSec(val)}。請重新點擊「翻譯與分析」來應用此範圍。`)
+                              setInfoMessage(
+                                `已設定會議暫停/結束標記：${formatSec(val)}。請重新點擊「翻譯與分析」來應用此範圍。`
+                              )
                             } catch (err) {
                               setErrorMessage(formatError(err))
                             }
@@ -1603,7 +1815,11 @@ function App(): React.JSX.Element {
                           color: trackActiveLine ? '#60a5fa' : undefined,
                           borderColor: trackActiveLine ? '#3b82f6' : undefined
                         }}
-                        title={trackActiveLine ? "自動滾動並聚焦當前播放的句子（已開啟）" : "自動滾動並聚焦當前播放的句子（已關閉）"}
+                        title={
+                          trackActiveLine
+                            ? '自動滾動並聚焦當前播放的句子（已開啟）'
+                            : '自動滾動並聚焦當前播放的句子（已關閉）'
+                        }
                         onClick={() => setTrackActiveLine(!trackActiveLine)}
                       >
                         {trackActiveLine ? '🎯 追蹤當前段落：開啟' : '📍 追蹤當前時段：關閉'}
@@ -1613,8 +1829,21 @@ function App(): React.JSX.Element {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>
                         目前有效錄音範圍：
-                        <strong style={{ color: selectedJob.trimStart || selectedJob.trimEnd ? '#3b82f6' : 'inherit' }}>
-                          [{selectedJob.trimStart !== null ? formatSec(selectedJob.trimStart) : '00:00:00'} - {selectedJob.trimEnd !== null ? formatSec(selectedJob.trimEnd) : '全部結束'}]
+                        <strong
+                          style={{
+                            color:
+                              selectedJob.trimStart || selectedJob.trimEnd ? '#3b82f6' : 'inherit'
+                          }}
+                        >
+                          [
+                          {selectedJob.trimStart !== null
+                            ? formatSec(selectedJob.trimStart)
+                            : '00:00:00'}{' '}
+                          -{' '}
+                          {selectedJob.trimEnd !== null
+                            ? formatSec(selectedJob.trimEnd)
+                            : '全部結束'}
+                          ]
                         </strong>
                       </span>
                       {(selectedJob.trimStart !== null || selectedJob.trimEnd !== null) && (
@@ -1624,12 +1853,18 @@ function App(): React.JSX.Element {
                           style={{ color: '#ef4444' }}
                           onClick={async () => {
                             try {
-                              const updatedJob = await window.api.updateJobTrimming(selectedJob.id, null, null)
+                              const updatedJob = await window.api.updateJobTrimming(
+                                selectedJob.id,
+                                null,
+                                null
+                              )
                               setAppState((current) => {
                                 if (!current) return current
                                 return {
                                   ...current,
-                                  jobs: current.jobs.map((j) => (j.id === updatedJob.id ? updatedJob : j))
+                                  jobs: current.jobs.map((j) =>
+                                    j.id === updatedJob.id ? updatedJob : j
+                                  )
                                 }
                               })
                               setInfoMessage(`已清除範圍裁切標記，將翻譯完整影音檔。`)
@@ -1647,7 +1882,10 @@ function App(): React.JSX.Element {
               )}
 
               <div className="tab-bar">
-                {([{ key: 'transcript', label: 'Transcript' }, ...summarySections.map((s) => ({ key: s.key, label: s.label }))]).map((tab) => (
+                {[
+                  { key: 'transcript', label: 'Transcript' },
+                  ...summarySections.map((s) => ({ key: s.key, label: s.label }))
+                ].map((tab) => (
                   <button
                     key={tab.key}
                     className={`tab-button ${activeTab === tab.key ? 'active' : ''}`}
@@ -1669,13 +1907,21 @@ function App(): React.JSX.Element {
                       className="tab-close"
                       role="button"
                       aria-label="刪除"
-                      onClick={(e) => { e.stopPropagation(); deleteCustomTab(tab.id) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteCustomTab(tab.id)
+                      }}
                     >
                       ×
                     </span>
                   </button>
                 ))}
-                <button className="tab-button tab-add" onClick={addCustomTab} type="button" title="新增自訂分析">
+                <button
+                  className="tab-button tab-add"
+                  onClick={addCustomTab}
+                  type="button"
+                  title="新增自訂分析"
+                >
                   +
                 </button>
               </div>
@@ -1687,51 +1933,85 @@ function App(): React.JSX.Element {
                     style={{ flex: 1 }}
                     placeholder="搜尋關鍵字…"
                     value={tabSearchQuery}
-                    onChange={(e) => { setTabSearchQuery(e.target.value); setTranscriptSearchIndex(0) }}
+                    onChange={(e) => {
+                      setTabSearchQuery(e.target.value)
+                      setTranscriptSearchIndex(0)
+                    }}
                     onKeyDown={(e) => {
-                      if (activeTab !== 'transcript' || !tabSearchQuery.trim() || transcriptMatchCount === 0) return
+                      if (
+                        activeTab !== 'transcript' ||
+                        !tabSearchQuery.trim() ||
+                        transcriptMatchCount === 0
+                      )
+                        return
                       if (e.key === 'Enter') {
                         e.preventDefault()
                         if (e.shiftKey) {
-                          setTranscriptSearchIndex((i) => (i - 1 + transcriptMatchCount) % transcriptMatchCount)
+                          setTranscriptSearchIndex(
+                            (i) => (i - 1 + transcriptMatchCount) % transcriptMatchCount
+                          )
                         } else {
                           setTranscriptSearchIndex((i) => (i + 1) % transcriptMatchCount)
                         }
                       }
                     }}
                   />
-                  {activeTab === 'transcript' && tabSearchQuery.trim() && transcriptMatchCount > 0 && (
-                    <>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                        {Math.min(transcriptSearchIndex, transcriptMatchCount - 1) + 1}/{transcriptMatchCount}
-                      </span>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        title="上一個 (Shift+Enter)"
-                        onClick={() => setTranscriptSearchIndex((i) => (i - 1 + transcriptMatchCount) % transcriptMatchCount)}
-                      >◀</button>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        title="下一個 (Enter)"
-                        onClick={() => setTranscriptSearchIndex((i) => (i + 1) % transcriptMatchCount)}
-                      >▶</button>
-                    </>
-                  )}
+                  {activeTab === 'transcript' &&
+                    tabSearchQuery.trim() &&
+                    transcriptMatchCount > 0 && (
+                      <>
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            color: 'var(--text-secondary)',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {Math.min(transcriptSearchIndex, transcriptMatchCount - 1) + 1}/
+                          {transcriptMatchCount}
+                        </span>
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          title="上一個 (Shift+Enter)"
+                          onClick={() =>
+                            setTranscriptSearchIndex(
+                              (i) => (i - 1 + transcriptMatchCount) % transcriptMatchCount
+                            )
+                          }
+                        >
+                          ◀
+                        </button>
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          title="下一個 (Enter)"
+                          onClick={() =>
+                            setTranscriptSearchIndex((i) => (i + 1) % transcriptMatchCount)
+                          }
+                        >
+                          ▶
+                        </button>
+                      </>
+                    )}
                 </div>
               </div>
             </div>
 
             <div className="tab-content" ref={tabContentRef}>
-              {activeTab === 'transcript' ? (                <article className="transcript-panel">
+              {activeTab === 'transcript' ? (
+                <article className="transcript-panel">
                   <div className="summary-card-header">
                     <h3>Transcript</h3>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
                         className="link-button"
                         onClick={correctTranscriptWithAI}
-                        disabled={Boolean(busyAction) || isRecording || selectedJob.transcriptSegments.length === 0}
+                        disabled={
+                          Boolean(busyAction) ||
+                          isRecording ||
+                          selectedJob.transcriptSegments.length === 0
+                        }
                         type="button"
                         style={{ color: '#10b981' }}
                         title="使用 AI 矯正全篇逐字稿中的錯別字、同音異義字（如消金、契金等術語），並完整保留對齊的時間戳記"
@@ -1740,7 +2020,9 @@ function App(): React.JSX.Element {
                       </button>
                       <button
                         className="link-button"
-                        onClick={() => void copyToClipboard('Transcript', selectedJob.transcriptText)}
+                        onClick={() =>
+                          void copyToClipboard('Transcript', selectedJob.transcriptText)
+                        }
                         type="button"
                       >
                         Copy
@@ -1751,43 +2033,69 @@ function App(): React.JSX.Element {
                     <div className="transcript-lines">
                       {(() => {
                         let matchOrdinal = -1
-                        const currentMatchTarget = Math.min(transcriptSearchIndex, transcriptMatchCount - 1)
+                        const currentMatchTarget = Math.min(
+                          transcriptSearchIndex,
+                          transcriptMatchCount - 1
+                        )
                         return selectedJob.transcriptSegments
-                          .filter((seg) => !tabSearchQuery.trim() || seg.text.toLowerCase().includes(tabSearchQuery.toLowerCase()))
+                          .filter(
+                            (seg) =>
+                              !tabSearchQuery.trim() ||
+                              seg.text.toLowerCase().includes(tabSearchQuery.toLowerCase())
+                          )
                           .filter((seg) => !showOnlyConfirmed || Boolean(seg.lowConfidence))
                           .map((seg) => {
-                          const active = currentAudioTime >= seg.startSeconds && currentAudioTime < seg.endSeconds
-                          const isLowConfidence = Boolean(seg.lowConfidence)
-                          const isSearchMatch = Boolean(tabSearchQuery.trim()) && seg.text.toLowerCase().includes(tabSearchQuery.toLowerCase())
-                          if (isSearchMatch) matchOrdinal++
-                          const isCurrentMatch = isSearchMatch && matchOrdinal === currentMatchTarget
-                          const speakerRegex = /^([^:\uff1a\n]+)\s*[:\uff1a]\s*(.*)$/
-                          const speakerMatch = seg.text.match(speakerRegex)
-                          return (
-                            <p
-                              key={seg.index}
-                              ref={isCurrentMatch ? (el) => { transcriptMatchRef.current = el } : undefined}
-                              className={`transcript-line ${active ? 'active-line' : ''} ${isLowConfidence ? 'low-confidence-line' : ''} ${isCurrentMatch ? 'current-search-match' : ''}`}
-                            >
-                              <span
-                                className="line-ts"
-                                title="點擊播放此段音檔"
-                                onClick={() => {
-                                  const a = audioRef.current
-                                  if (a) {
-                                    segmentEndRef.current = seg.endSeconds
-                                    a.currentTime = seg.startSeconds
-                                    void a.play()
-                                  }
-                                }}
-                                style={{ cursor: 'pointer', paddingRight: '4px', opacity: active ? 1 : 0.8 }}
+                            const active =
+                              currentAudioTime >= seg.startSeconds &&
+                              currentAudioTime < seg.endSeconds
+                            const isLowConfidence = Boolean(seg.lowConfidence)
+                            const isSearchMatch =
+                              Boolean(tabSearchQuery.trim()) &&
+                              seg.text.toLowerCase().includes(tabSearchQuery.toLowerCase())
+                            if (isSearchMatch) matchOrdinal++
+                            const isCurrentMatch =
+                              isSearchMatch && matchOrdinal === currentMatchTarget
+                            const speakerRegex = /^([^:\uff1a\n]+)\s*[:\uff1a]\s*(.*)$/
+                            const speakerMatch = seg.text.match(speakerRegex)
+                            return (
+                              <p
+                                key={seg.index}
+                                ref={
+                                  isCurrentMatch
+                                    ? (el) => {
+                                        transcriptMatchRef.current = el
+                                      }
+                                    : undefined
+                                }
+                                className={`transcript-line ${active ? 'active-line' : ''} ${isLowConfidence ? 'low-confidence-line' : ''} ${isCurrentMatch ? 'current-search-match' : ''}`}
                               >
-                                ▶ [{formatSec(seg.startSeconds)}]
-                              </span>
-                              <>
+                                <span
+                                  className="line-ts"
+                                  title="點擊播放此段音檔"
+                                  onClick={() => {
+                                    const a = audioRef.current
+                                    if (a) {
+                                      segmentEndRef.current = seg.endSeconds
+                                      a.currentTime = seg.startSeconds
+                                      void a.play()
+                                    }
+                                  }}
+                                  style={{
+                                    cursor: 'pointer',
+                                    paddingRight: '4px',
+                                    opacity: active ? 1 : 0.8
+                                  }}
+                                >
+                                  ▶ [{formatSec(seg.startSeconds)}]
+                                </span>
+                                <>
                                   <span
                                     className="transcript-text-span"
-                                    title={isLowConfidence ? "⚠️ 語意或發音可能較不清晰，按兩下即可編輯此處內容" : "按兩下即可編輯此處內容"}
+                                    title={
+                                      isLowConfidence
+                                        ? '⚠️ 語意或發音可能較不清晰，按兩下即可編輯此處內容'
+                                        : '按兩下即可編輯此處內容'
+                                    }
                                     onDoubleClick={() => {
                                       setEditingSegmentIndex(seg.index)
                                       setEditingSegmentText(seg.text)
@@ -1795,7 +2103,9 @@ function App(): React.JSX.Element {
                                     }}
                                     style={{
                                       flex: 1,
-                                      borderBottom: isLowConfidence ? '1.5px dotted #eab308' : undefined,
+                                      borderBottom: isLowConfidence
+                                        ? '1.5px dotted #eab308'
+                                        : undefined,
                                       paddingBottom: isLowConfidence ? '1px' : undefined
                                     }}
                                   >
@@ -1804,7 +2114,14 @@ function App(): React.JSX.Element {
                                         highlightText(speakerMatch[2], tabSearchQuery)
                                       ) : (
                                         <>
-                                          <strong className="speaker-label" style={{ color: 'var(--accent-color, #3b82f6)', marginRight: '6px', fontWeight: 'bold' }}>
+                                          <strong
+                                            className="speaker-label"
+                                            style={{
+                                              color: 'var(--accent-color, #3b82f6)',
+                                              marginRight: '6px',
+                                              fontWeight: 'bold'
+                                            }}
+                                          >
                                             {speakerMatch[1]}:
                                           </strong>
                                           {highlightText(speakerMatch[2], tabSearchQuery)}
@@ -1833,9 +2150,9 @@ function App(): React.JSX.Element {
                                   </span>
                                   {/* Double-click the paragraph to edit, pencil button removed per guidelines */}
                                 </>
-                            </p>
-                          )
-                        })
+                              </p>
+                            )
+                          })
                       })()}
                     </div>
                   ) : (
@@ -1843,7 +2160,9 @@ function App(): React.JSX.Element {
                       {selectedJob.transcriptText || 'No transcript generated yet.'}
                     </pre>
                   )}
-                  {selectedJob.errorMessage ? <p className="error-inline">{selectedJob.errorMessage}</p> : null}
+                  {selectedJob.errorMessage ? (
+                    <p className="error-inline">{selectedJob.errorMessage}</p>
+                  ) : null}
                 </article>
               ) : customTabs.some((t) => t.id === activeTab) ? (
                 (() => {
@@ -1883,16 +2202,26 @@ function App(): React.JSX.Element {
                       </div>
                       {result ? (
                         <div className="summary-lines">
-                          {result.replace(/<br\s*\/?>/gi, '\n').split('\n')
+                          {result
+                            .replace(/<br\s*\/?>/gi, '\n')
+                            .split('\n')
                             .map((line, origIdx) => ({ line, origIdx }))
-                            .filter(({ line }) => !tabSearchQuery.trim() || line.toLowerCase().includes(tabSearchQuery.toLowerCase()))
+                            .filter(
+                              ({ line }) =>
+                                !tabSearchQuery.trim() ||
+                                line.toLowerCase().includes(tabSearchQuery.toLowerCase())
+                            )
                             .map(({ line, origIdx }) => (
-                              <p key={origIdx} className="summary-line">{highlightText(line, tabSearchQuery)}</p>
+                              <p key={origIdx} className="summary-line">
+                                {highlightText(line, tabSearchQuery)}
+                              </p>
                             ))}
                         </div>
                       ) : (
                         <div className="summary-content">
-                          {tab.prompt ? '按「產出」以使用 AI 解析逐字稿。' : '請先按「提示詞」設定分析指令。'}
+                          {tab.prompt
+                            ? '按「產出」以使用 AI 解析逐字稿。'
+                            : '請先按「提示詞」設定分析指令。'}
                         </div>
                       )}
                     </article>
@@ -1900,9 +2229,13 @@ function App(): React.JSX.Element {
                 })()
               ) : (
                 (() => {
-                  const section = summarySections.find((s) => s.key === activeTab) ?? summarySections[0]
+                  const section =
+                    summarySections.find((s) => s.key === activeTab) ?? summarySections[0]
                   const rawText = section.value
-                    ? (hideTimestamps ? stripTimestamps(section.value) : section.value).replace(/\\n/g, '\n')
+                    ? (hideTimestamps ? stripTimestamps(section.value) : section.value).replace(
+                        /\\n/g,
+                        '\n'
+                      )
                     : ''
                   return (
                     <article className="summary-card">
@@ -1918,12 +2251,20 @@ function App(): React.JSX.Element {
                       </div>
                       {rawText ? (
                         <div className="summary-lines">
-                          {rawText.replace(/<br\s*\/?>/gi, '\n').split('\n')
+                          {rawText
+                            .replace(/<br\s*\/?>/gi, '\n')
+                            .split('\n')
                             .map((line, origIdx) => ({ line, origIdx }))
-                            .filter(({ line }) => !tabSearchQuery.trim() || line.toLowerCase().includes(tabSearchQuery.toLowerCase()))
+                            .filter(
+                              ({ line }) =>
+                                !tabSearchQuery.trim() ||
+                                line.toLowerCase().includes(tabSearchQuery.toLowerCase())
+                            )
                             .map(({ line, origIdx }) => {
                               const ts = parseLineTimestamp(line)
-                              const active = ts ? currentAudioTime >= ts.start && currentAudioTime < ts.end : false
+                              const active = ts
+                                ? currentAudioTime >= ts.start && currentAudioTime < ts.end
+                                : false
                               return (
                                 <p
                                   key={origIdx}
@@ -1994,7 +2335,9 @@ function App(): React.JSX.Element {
                     >
                       <div className="job-card-header">
                         <strong>{job.sourceName}</strong>
-                        <span className={`status-chip status-${job.status}`}>{statusLabel(job.status)}</span>
+                        <span className={`status-chip status-${job.status}`}>
+                          {statusLabel(job.status)}
+                        </span>
                       </div>
                       <div className="job-card-meta">
                         <span>{sourceLabel(job.sourceKind)}</span>
@@ -2004,7 +2347,10 @@ function App(): React.JSX.Element {
                     </button>
                     <button
                       className="ghost-button rename-btn"
-                      onClick={(e) => { e.stopPropagation(); renameJob(job.id) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        renameJob(job.id)
+                      }}
                       type="button"
                       title="更改標題"
                     >
@@ -2134,7 +2480,13 @@ function highlightText(text: string, query: string): React.ReactNode {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
   return parts.map((part, i) =>
-    i % 2 === 1 ? <mark key={i} className="search-highlight">{part}</mark> : part
+    i % 2 === 1 ? (
+      <mark key={i} className="search-highlight">
+        {part}
+      </mark>
+    ) : (
+      part
+    )
   )
 }
 

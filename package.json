@@ -1,6 +1,6 @@
 {
   "name": "meetingminutes",
-  "version": "0.2.0-beta",
+  "version": "0.3.0-beta",
   "description": "Desktop meeting recorder, transcription, and summarization app",
   "main": "./out/main/index.js",
   "author": "Jerry",

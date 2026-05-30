@@ -39,7 +39,11 @@ export class OpenAICompatibleProvider {
           file: createReadStream(chunkPath),
           model: this.config.transcriptionModel,
           response_format: 'verbose_json',
-          prompt: buildTranscriptionPrompt(this.config.outputLanguage, this.config.identifySpeakers)
+          prompt: buildTranscriptionPrompt(
+            this.config.outputLanguage,
+            this.config.identifySpeakers,
+            this.config.glossaryTerms
+          )
         })
       } catch (err: any) {
         const errMsg = err && typeof err.message === 'string' ? err.message : ''
@@ -48,12 +52,18 @@ export class OpenAICompatibleProvider {
           errMsg.includes('unsupported_value') ||
           err?.status === 400
         ) {
-          console.log(`[OpenAICompatibleProvider] Model does not support 'verbose_json', trying 'json' as fallback.`)
+          console.log(
+            `[OpenAICompatibleProvider] Model does not support 'verbose_json', trying 'json' as fallback.`
+          )
           response = await this.client.audio.transcriptions.create({
             file: createReadStream(chunkPath),
             model: this.config.transcriptionModel,
             response_format: 'json',
-            prompt: buildTranscriptionPrompt(this.config.outputLanguage, this.config.identifySpeakers)
+            prompt: buildTranscriptionPrompt(
+              this.config.outputLanguage,
+              this.config.identifySpeakers,
+              this.config.glossaryTerms
+            )
           })
         } else {
           throw err
@@ -121,14 +131,20 @@ export class OpenAICompatibleProvider {
     return { text, segments: transcriptSegments }
   }
 
-  async summarizeTranscript(transcript: string, segments: TranscriptSegment[]): Promise<SummaryBundle> {
+  async summarizeTranscript(
+    transcript: string,
+    segments: TranscriptSegment[]
+  ): Promise<SummaryBundle> {
     if (!transcript.trim()) {
       throw new Error('Transcript is empty, so there is nothing to summarize.')
     }
 
     const timestampedTranscript = formatTimestampedTranscript(segments) || transcript
 
-    const responseFormat: OpenAI.ResponseFormatJSONSchema | OpenAI.ResponseFormatJSONObject | undefined =
+    const responseFormat:
+      | OpenAI.ResponseFormatJSONSchema
+      | OpenAI.ResponseFormatJSONObject
+      | undefined =
       this.config.provider === 'openai'
         ? {
             type: 'json_schema',
@@ -164,7 +180,11 @@ export class OpenAICompatibleProvider {
       messages: [
         {
           role: 'system',
-          content: buildSummarizationSystemPrompt(this.config.outputLanguage, this.config.showTimestamps, this.config.sectionPrompts)
+          content: buildSummarizationSystemPrompt(
+            this.config.outputLanguage,
+            this.config.showTimestamps,
+            this.config.sectionPrompts
+          )
         },
         {
           role: 'user',
@@ -207,7 +227,10 @@ export class OpenAICompatibleProvider {
     return completion.choices[0]?.message.content?.trim() ?? ''
   }
 
-  async correctTranscript(transcript: string, segments: TranscriptSegment[]): Promise<TranscriptPayload> {
+  async correctTranscript(
+    transcript: string,
+    segments: TranscriptSegment[]
+  ): Promise<TranscriptPayload> {
     if (!transcript.trim()) {
       throw new Error('Transcript is empty, so there is nothing to correct.')
     }
@@ -252,23 +275,34 @@ ${speakerRule}
   }
 }
 
-function buildTranscriptionPrompt(language: OutputLanguage, identifySpeakers: boolean): string {
+function buildTranscriptionPrompt(
+  language: OutputLanguage,
+  identifySpeakers: boolean,
+  glossaryTerms?: string[]
+): string {
   const parts: string[] = []
   if (language === 'zh-TW') {
-    parts.push('這是一篇繁體中文、正體中文的會議逐字稿記錄，標點符號一律使用全形，請用繁體字及台灣語境寫作（例如：使用消金、企金、專案，不使用簡體字。）。')
+    parts.push(
+      '這是一篇繁體中文、正體中文的會議逐字稿記錄，標點符號一律使用全形，請用繁體字及台灣語境寫作（例如：使用消金、企金、專案，不使用簡體字。）。'
+    )
   } else if (language !== 'auto') {
     parts.push(`Please output the transcription in ${OUTPUT_LANGUAGE_LABELS[language]}.`)
   }
   if (identifySpeakers) {
     parts.push('Identify and label different speakers (e.g., Speaker 1:, Speaker 2:).')
   }
+  if (glossaryTerms && glossaryTerms.length > 0) {
+    parts.push(`專有名詞參考：${glossaryTerms.join('、')}。`)
+  }
   return parts.join(' ')
 }
 
-function buildSummarizationSystemPrompt(language: OutputLanguage, showTimestamps: boolean, prompts: SectionPrompts): string {
-  const timestampNote = showTimestamps
-    ? 'each starting with "- [HH:MM:SS - HH:MM:SS] "'
-    : ''
+function buildSummarizationSystemPrompt(
+  language: OutputLanguage,
+  showTimestamps: boolean,
+  prompts: SectionPrompts
+): string {
+  const timestampNote = showTimestamps ? 'each starting with "- [HH:MM:SS - HH:MM:SS] "' : ''
 
   const lines = [
     'You produce structured meeting summaries.',

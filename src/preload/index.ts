@@ -6,7 +6,8 @@ import type { CustomTab, DesktopApi, SaveSettingsInput, ProviderId } from '../sh
 const api: DesktopApi = {
   getAppState: () => ipcRenderer.invoke('app:get-state'),
   saveSettings: (input: SaveSettingsInput) => ipcRenderer.invoke('settings:save', input),
-  clearStoredApiKey: (provider: ProviderId) => ipcRenderer.invoke('settings:clear-api-key', provider),
+  clearStoredApiKey: (provider: ProviderId) =>
+    ipcRenderer.invoke('settings:clear-api-key', provider),
   importMedia: () => ipcRenderer.invoke('media:import'),
   beginRecording: () => ipcRenderer.invoke('recording:begin'),
   appendRecordingChunk: (recordingId, chunk) =>

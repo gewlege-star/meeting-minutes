@@ -48,9 +48,7 @@ export function applyGlossary(text: string, entries: GlossaryEntry[]): string {
     return text
   }
 
-  const sorted = [...entries].sort(
-    (a, b) => b.sourceTerm.length - a.sourceTerm.length
-  )
+  const sorted = [...entries].sort((a, b) => b.sourceTerm.length - a.sourceTerm.length)
 
   let result = text
   for (const entry of sorted) {
