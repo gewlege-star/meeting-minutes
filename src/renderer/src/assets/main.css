@@ -13,8 +13,9 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 20px;
-  gap: 16px;
+  padding: 10px 16px;
+  gap: 8px;
+  box-sizing: border-box;
 }
 
 .top-bar {
@@ -28,6 +29,7 @@ body {
   margin: 0;
   font-weight: 700;
   margin-right: auto;
+  font-size: 1.4rem;
 }
 
 .top-bar-actions {
@@ -60,7 +62,7 @@ body {
   gap: 4px;
   border-bottom: 1px solid var(--panel-border);
   padding-bottom: 0;
-  margin-top: 12px;
+  margin-top: 6px;
   overflow-x: auto;
 }
 
@@ -121,6 +123,45 @@ body {
   padding: 0 1px;
 }
 
+.current-search-match {
+  outline: 1px solid rgba(251, 191, 36, 0.7);
+  background: rgba(251, 191, 36, 0.08);
+  border-radius: 4px;
+}
+
+.edit-segment-dialog {
+  width: 80vw !important;
+  max-width: 80vw !important;
+  height: 80vh !important;
+  max-height: 80vh !important;
+}
+
+.edit-segment-dialog[open] {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.edit-segment-dialog .settings-grid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.edit-segment-dialog .settings-grid-wide {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.edit-segment-dialog textarea {
+  flex: 1 !important;
+  height: 100% !important;
+  resize: none !important;
+}
+
 .panel-heading h2,
 .detail-header h2,
 .summary-card h3 {
@@ -146,13 +187,12 @@ body {
 
 .job-list-panel,
 .detail-panel {
-  padding: 18px;
+  padding: 12px 14px;
 }
 
 .job-list-panel {
   display: flex;
   flex-direction: column;
-  padding: 18px;
   overflow: auto;
   flex: 1;
   min-height: 0;
@@ -180,8 +220,17 @@ body {
   justify-content: space-between;
 }
 
+.detail-header {
+  margin-bottom: 4px;
+}
+
+.detail-header h2 {
+  font-size: 1.2rem !important;
+  margin: 0;
+}
+
 .panel-heading {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .settings-grid {
@@ -239,6 +288,16 @@ button:not(:disabled):hover {
 .primary-button {
   background: var(--button-primary);
   color: white;
+}
+
+/* Compact sizes for top bar, toolbars and audio trimming controls */
+.top-bar button,
+.toolbar button,
+.trimming-controls button,
+.audio-ctrl-btn {
+  padding: 6px 12px;
+  font-size: 13px !important;
+  border-radius: 8px;
 }
 
 .primary-button:hover:not(:disabled) {
@@ -540,10 +599,71 @@ button:not(:disabled):hover {
   border-left: 3px solid #3b82f6;
 }
 
+.low-confidence-line {
+  background: rgba(234, 179, 8, 0.03);
+  border-left: 3px dotted rgba(234, 179, 8, 0.4);
+}
+
+.low-confidence-line:hover {
+  background: rgba(234, 179, 8, 0.07) !important;
+}
+
 .line-ts {
   color: var(--text-secondary);
   font-size: 12px;
   margin-right: 6px;
+  user-select: none;
+}
+
+.line-ts:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.transcript-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.transcript-text-span {
+  flex: 1;
+  cursor: text;
+}
+
+.transcript-edit-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.7;
+}
+
+.transcript-edit-btn:hover {
+  opacity: 1;
+}
+
+.transcript-line:hover .transcript-edit-btn {
+  display: inline-block;
+}
+
+.inline-edit-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.inline-edit-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .empty-state {
@@ -563,6 +683,14 @@ button:not(:disabled):hover {
 }
 
 .settings-dialog {
+  position: fixed;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  max-height: 90vh;
+  overflow-y: auto;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 20px;
@@ -653,12 +781,73 @@ button:not(:disabled):hover {
 }
 
 /* Checkbox and prompt settings */
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Combobox / searchable select styles */
+.searchable-select-container {
+  position: relative;
+  width: 100%;
+}
+
+.searchable-select-input {
   cursor: pointer;
 }
+
+.searchable-select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  z-index: 999;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+.searchable-select-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  background: transparent;
+  width: 100%;
+  border-radius: 0;
+}
+
+.searchable-select-item:hover,
+.searchable-select-item.active {
+  background: var(--button-secondary-hover);
+}
+
+.searchable-select-empty {
+  padding: 10px 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.model-select-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.model-select-row select,
+.model-select-row select option {
+  cursor: pointer;
+}
+
+.refresh-models-btn {
+  padding: 11px 12px;
+  flex-shrink: 0;
+}
+
 
 .checkbox-label input[type="checkbox"] {
   width: 18px;
@@ -710,17 +899,18 @@ button:not(:disabled):hover {
   line-height: 1.4;
 }
 
-.prompt-textarea {
-  width: 100%;
-  resize: vertical;
-  border-radius: 8px;
-  border: 1px solid var(--panel-border);
-  background: rgba(15, 23, 42, 0.5);
-  color: var(--text-primary);
-  padding: 8px 10px;
-  font-size: 13px;
-  line-height: 1.4;
-  font: inherit;
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.warning-banner {
+  background: rgba(234, 179, 8, 0.15) !important;
+  border-color: rgba(234, 179, 8, 0.3) !important;
+  color: #fef08a !important;
+  margin-top: 6px;
 }
 
 .tab-custom {

@@ -7,6 +7,7 @@ export interface AIProvider {
   transcribeAudio: (chunkPaths: string[]) => Promise<TranscriptPayload>
   summarizeTranscript: (transcript: string, segments: TranscriptSegment[]) => Promise<SummaryBundle>
   analyzeWithPrompt: (transcript: string, prompt: string) => Promise<string>
+  correctTranscript: (transcript: string, segments: TranscriptSegment[]) => Promise<TranscriptPayload>
 }
 
 export function createAIProvider(config: ProviderConfig): AIProvider {

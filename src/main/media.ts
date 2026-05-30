@@ -21,16 +21,29 @@ export async function ensureNormalizedAudio(
 
   configureFfmpeg()
 
-  await runFfmpeg((command) =>
-    command
-      .input(job.sourcePath)
+  await runFfmpeg((command) => {
+    let cmd = command.input(job.sourcePath)
+
+    if (typeof job.trimStart === 'number' && job.trimStart > 0) {
+      cmd = cmd.seekInput(job.trimStart)
+    }
+
+    if (typeof job.trimEnd === 'number' && job.trimEnd > 0) {
+      const start = job.trimStart || 0
+      const duration = job.trimEnd - start
+      if (duration > 0) {
+        cmd = cmd.duration(duration)
+      }
+    }
+
+    return cmd
       .noVideo()
       .audioChannels(1)
       .audioFrequency(16000)
       .audioBitrate('32k')
       .format('mp3')
       .output(outputPath)
-  )
+  })
 
   return outputPath
 }

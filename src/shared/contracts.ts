@@ -53,7 +53,7 @@ export const PROVIDER_DEFAULTS: Record<
   }
 }
 
-export const AUDIO_CHUNK_SECONDS = 20 * 60
+export const AUDIO_CHUNK_SECONDS = 2 * 60
 
 export type MediaSourceKind = 'recording' | 'audio-file' | 'video-file'
 export type ProcessingStatus =
@@ -69,6 +69,7 @@ export interface TranscriptSegment {
   startSeconds: number
   endSeconds: number
   text: string
+  lowConfidence?: boolean
 }
 
 export interface SummaryBundle {
@@ -99,6 +100,8 @@ export interface ProcessingJob {
   transcriptSegments: TranscriptSegment[]
   summary: SummaryBundle
   errorMessage: string | null
+  trimStart: number | null
+  trimEnd: number | null
   createdAt: string
   updatedAt: string
 }
@@ -120,11 +123,18 @@ export const DEFAULT_SECTION_PROMPTS: SectionPrompts = {
 }
 
 export interface AppSettingsView {
-  provider: ProviderId
-  apiKeyConfigured: boolean
-  baseUrl: string
-  transcriptionModel: string
-  summaryModel: string
+  transcriptionProvider: ProviderId
+  summaryProvider: ProviderId
+  apiKeysConfigured: Record<ProviderId, boolean>
+  openaiBaseUrl: string
+  groqBaseUrl: string
+  geminiBaseUrl: string
+  openaiTranscriptionModel: string
+  groqTranscriptionModel: string
+  geminiTranscriptionModel: string
+  openaiSummaryModel: string
+  groqSummaryModel: string
+  geminiSummaryModel: string
   outputLanguage: OutputLanguage
   showTimestamps: boolean
   identifySpeakers: boolean
@@ -133,11 +143,20 @@ export interface AppSettingsView {
 }
 
 export interface SaveSettingsInput {
-  provider: ProviderId
-  apiKey: string
-  baseUrl: string
-  transcriptionModel: string
-  summaryModel: string
+  transcriptionProvider: ProviderId
+  summaryProvider: ProviderId
+  openaiApiKey?: string
+  groqApiKey?: string
+  geminiApiKey?: string
+  openaiBaseUrl: string
+  groqBaseUrl: string
+  geminiBaseUrl: string
+  openaiTranscriptionModel: string
+  groqTranscriptionModel: string
+  geminiTranscriptionModel: string
+  openaiSummaryModel: string
+  groqSummaryModel: string
+  geminiSummaryModel: string
   outputLanguage: OutputLanguage
   showTimestamps: boolean
   identifySpeakers: boolean
@@ -162,7 +181,7 @@ export interface AppState {
 export interface DesktopApi {
   getAppState: () => Promise<AppState>
   saveSettings: (input: SaveSettingsInput) => Promise<AppSettingsView>
-  clearStoredApiKey: () => Promise<AppSettingsView>
+  clearStoredApiKey: (provider: ProviderId) => Promise<AppSettingsView>
   importMedia: () => Promise<ProcessingJob | null>
   beginRecording: () => Promise<{ recordingId: string }>
   appendRecordingChunk: (recordingId: string, chunk: ArrayBuffer) => Promise<void>
@@ -186,4 +205,8 @@ export interface DesktopApi {
   getCustomTabResults: () => Promise<Record<string, string>>
   saveCustomTabResults: (results: Record<string, string>) => Promise<void>
   writeClipboard: (text: string) => Promise<void>
+  updateTranscript: (jobId: string, transcriptText: string, segments: TranscriptSegment[]) => Promise<ProcessingJob>
+  correctTranscript: (jobId: string) => Promise<ProcessingJob>
+  updateJobTrimming: (jobId: string, trimStart: number | null, trimEnd: number | null) => Promise<ProcessingJob>
+  fetchModelsByProvider: (provider: ProviderId, apiKey: string, baseUrl: string) => Promise<string[]>
 }

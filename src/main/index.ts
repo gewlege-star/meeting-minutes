@@ -6,7 +6,7 @@ import { createReadStream } from 'fs'
 import { mkdir, readFile, stat, writeFile } from 'fs/promises'
 
 import icon from '../../resources/icon.png?asset'
-import type { SaveSettingsInput, CustomTab } from '../shared/contracts'
+import type { SaveSettingsInput, CustomTab, ProviderId } from '../shared/contracts'
 import { AppDatabase, type ProviderConfig } from './database'
 import { createAIProvider } from './ai-provider'
 import { createAudioChunks, ensureNormalizedAudio } from './media'
@@ -173,7 +173,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle('app:get-state', async () => {
     const db = requireDatabase()
     return {
-      settings: db.getSettingsView(hasEncryptedApiKey(db)),
+      settings: db.getSettingsView(getAllEncryptedApiKeys(db)),
       jobs: db.getJobs(),
       lastJobId: db.getRawSetting('lastJobId') || null,
       customTabs: db.getCustomTabs(),
@@ -184,13 +184,39 @@ function registerIpcHandlers(): void {
   ipcMain.handle('settings:save', async (_, input: SaveSettingsInput) => {
     persistSettings(input)
     const db = requireDatabase()
-    return db.getSettingsView(hasEncryptedApiKey(db))
+    return db.getSettingsView(getAllEncryptedApiKeys(db))
   })
 
-  ipcMain.handle('settings:clear-api-key', async () => {
+  ipcMain.handle('settings:clear-api-key', async (_, provider: ProviderId) => {
     const db = requireDatabase()
-    db.deleteEncryptedApiKey(db.getCurrentProvider())
-    return db.getSettingsView(false)
+    db.deleteEncryptedApiKey(provider || db.getCurrentProvider())
+    return db.getSettingsView(getAllEncryptedApiKeys(db))
+  })
+
+  ipcMain.handle('settings:fetch-models', async (_, provider: ProviderId, apiKey: string, baseUrl: string) => {
+    if (!apiKey) {
+      throw new Error('請提供 API 密鑰以獲取可用模型。')
+    }
+    try {
+      if (provider === 'gemini') {
+        const { GoogleGenAI } = require('@google/genai')
+        const client = new GoogleGenAI({ apiKey })
+        const response = await client.models.list()
+        const list = Array.isArray(response)
+          ? response
+          : (response && typeof response === 'object' && 'models' in response && Array.isArray(response.models)
+              ? response.models
+              : [])
+        return list.map((m: any) => m.name || m.id).filter(Boolean)
+      } else {
+        const { OpenAI } = require('openai')
+        const client = new OpenAI({ apiKey: apiKey, baseURL: baseUrl || undefined })
+        const response = await client.models.list()
+        return response.data.map((m: any) => m.id)
+      }
+    } catch (e: any) {
+      throw new Error(`獲取模型列表失敗: ${e.message}`)
+    }
   })
 
   ipcMain.handle('media:import', async () => {
@@ -259,9 +285,9 @@ function registerIpcHandlers(): void {
       const normalizedPath = await ensureNormalizedAudio(job, requireDirectories())
       db.saveNormalizedPath(jobId, normalizedPath)
 
-      const provider = createAIProvider(loadProviderConfig())
+      const txProvider = createAIProvider(loadProviderConfig('transcription'))
       const chunkPaths = await createAudioChunks(jobId, normalizedPath, requireDirectories())
-      const transcript = await provider.transcribeAudio(chunkPaths)
+      const transcript = await txProvider.transcribeAudio(chunkPaths)
 
       // Apply glossary replacements to transcript
       const glossary = db.getGlossary()
@@ -274,7 +300,8 @@ function registerIpcHandlers(): void {
       db.updateJobStatus(jobId, 'transcribed')
 
       db.updateJobStatus(jobId, 'summarizing')
-      const summary = await provider.summarizeTranscript(transcript.text, transcript.segments)
+      const sumProvider = createAIProvider(loadProviderConfig('summary'))
+      const summary = await sumProvider.summarizeTranscript(transcript.text, transcript.segments)
 
       // Apply glossary replacements to summary fields
       const processedSummary = {
@@ -309,7 +336,7 @@ function registerIpcHandlers(): void {
     db.updateJobStatus(jobId, 'summarizing')
 
     try {
-      const provider = createAIProvider(loadProviderConfig())
+      const provider = createAIProvider(loadProviderConfig('summary'))
       const summary = await provider.summarizeTranscript(job.transcriptText, job.transcriptSegments)
 
       // Apply glossary replacements to summary fields
@@ -379,6 +406,64 @@ function registerIpcHandlers(): void {
     if (!job) return null
     const filePath = job.normalizedPath || job.sourcePath
     return `http://127.0.0.1:${mediaServerPort}/${Buffer.from(filePath).toString('base64url')}`
+  })
+
+  ipcMain.handle('job:update-transcript', async (_, jobId: string, transcriptText: string, segments: any[]) => {
+    const db = requireDatabase()
+    const job = db.getJob(jobId)
+    if (!job) {
+      throw new Error('Job not found.')
+    }
+    db.saveTranscript(jobId, { text: transcriptText, segments })
+    return db.getJob(jobId)!
+  })
+
+  ipcMain.handle('job:update-trimming', async (_, jobId: string, trimStart: number | null, trimEnd: number | null) => {
+    const db = requireDatabase()
+    const job = db.getJob(jobId)
+    if (!job) {
+      throw new Error('Job not found.')
+    }
+    // If the trimming bounds changed, make sure we clear the previously normalized audio path so it gets regenerated!
+    if (job.normalizedPath) {
+      // By changing trimming, ensure_normalized will run Ffmpeg again to cut the correct part of the original sourcePath
+      db.saveNormalizedPath(jobId, null)
+    }
+    const updatedJob = db.saveTrimming(jobId, trimStart, trimEnd)
+    return updatedJob
+  })
+
+  ipcMain.handle('job:correct-transcript', async (_, jobId: string) => {
+    const db = requireDatabase()
+    const job = db.getJob(jobId)
+    if (!job) {
+      throw new Error('Job not found.')
+    }
+    if (!job.transcriptText.trim()) {
+      throw new Error('No transcript text to correct.')
+    }
+
+    db.updateJobStatus(jobId, 'transcribing')
+
+    try {
+      const provider = createAIProvider(loadProviderConfig('summary'))
+      const corrected = await provider.correctTranscript(job.transcriptText, job.transcriptSegments)
+
+      // Apply glossary replacements to the corrected output too
+      const glossary = db.getGlossary()
+      corrected.text = applyGlossary(corrected.text, glossary)
+      for (const segment of corrected.segments) {
+        segment.text = applyGlossary(segment.text, glossary)
+      }
+
+      db.saveTranscript(jobId, corrected)
+      db.updateJobStatus(jobId, 'complete')
+      return db.getJob(jobId)!
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown correction error.'
+      db.updateJobStatus(jobId, 'failed', message)
+      throw error
+    }
   })
 
   ipcMain.handle('app:save-last-job', async (_, jobId: string | null) => {
@@ -470,7 +555,7 @@ function registerIpcHandlers(): void {
     const glossary = db.getGlossary()
     const transcriptWithGlossary = applyGlossary(job.transcriptText, glossary)
 
-    const provider = createAIProvider(loadProviderConfig())
+    const provider = createAIProvider(loadProviderConfig('summary'))
     const result = await provider.analyzeWithPrompt(transcriptWithGlossary, prompt)
     return applyGlossary(result, glossary)
   })
@@ -483,10 +568,17 @@ function registerIpcHandlers(): void {
 function persistSettings(input: SaveSettingsInput): void {
   const db = requireDatabase()
   db.saveProviderSettings({
-    provider: input.provider,
-    baseUrl: input.baseUrl.trim(),
-    transcriptionModel: input.transcriptionModel.trim(),
-    summaryModel: input.summaryModel.trim(),
+    transcriptionProvider: input.transcriptionProvider,
+    summaryProvider: input.summaryProvider,
+    openaiBaseUrl: input.openaiBaseUrl,
+    groqBaseUrl: input.groqBaseUrl,
+    geminiBaseUrl: input.geminiBaseUrl,
+    openaiTranscriptionModel: input.openaiTranscriptionModel.trim(),
+    groqTranscriptionModel: input.groqTranscriptionModel.trim(),
+    geminiTranscriptionModel: input.geminiTranscriptionModel.trim(),
+    openaiSummaryModel: input.openaiSummaryModel.trim(),
+    groqSummaryModel: input.groqSummaryModel.trim(),
+    geminiSummaryModel: input.geminiSummaryModel.trim(),
     outputLanguage: input.outputLanguage,
     showTimestamps: input.showTimestamps,
     identifySpeakers: input.identifySpeakers,
@@ -494,22 +586,30 @@ function persistSettings(input: SaveSettingsInput): void {
     exportDir: input.exportDir.trim()
   })
 
-  const apiKey = input.apiKey.trim()
-  if (!apiKey) {
-    return
-  }
-
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error('Secure credential storage is unavailable on this system.')
   }
 
-  const encrypted = safeStorage.encryptString(apiKey).toString('base64')
-  db.setEncryptedApiKey(input.provider, encrypted)
+  if (input.openaiApiKey && input.openaiApiKey.trim()) {
+    const encrypted = safeStorage.encryptString(input.openaiApiKey.trim()).toString('base64')
+    db.setEncryptedApiKey('openai', encrypted)
+  }
+  if (input.groqApiKey && input.groqApiKey.trim()) {
+    const encrypted = safeStorage.encryptString(input.groqApiKey.trim()).toString('base64')
+    db.setEncryptedApiKey('groq', encrypted)
+  }
+  if (input.geminiApiKey && input.geminiApiKey.trim()) {
+    const encrypted = safeStorage.encryptString(input.geminiApiKey.trim()).toString('base64')
+    db.setEncryptedApiKey('gemini', encrypted)
+  }
 }
 
-function loadProviderConfig(): ProviderConfig {
+function loadProviderConfig(purpose: 'transcription' | 'summary'): ProviderConfig {
   const db = requireDatabase()
-  const provider = db.getCurrentProvider()
+  const provider = purpose === 'transcription'
+    ? ((db.getRawSetting('transcriptionProvider') as ProviderId) || (db.getRawSetting('provider') as ProviderId) || 'openai')
+    : ((db.getRawSetting('summaryProvider') as ProviderId) || (db.getRawSetting('provider') as ProviderId) || 'openai')
+
   const encryptedApiKey = db.getEncryptedApiKey(provider)
 
   if (encryptedApiKey && !safeStorage.isEncryptionAvailable()) {
@@ -520,11 +620,15 @@ function loadProviderConfig(): ProviderConfig {
     ? safeStorage.decryptString(Buffer.from(encryptedApiKey, 'base64'))
     : null
 
-  return db.getProviderConfig(apiKey)
+  return db.getProviderConfig(apiKey, provider)
 }
 
-function hasEncryptedApiKey(db: AppDatabase): boolean {
-  return Boolean(db.getEncryptedApiKey(db.getCurrentProvider()))
+function getAllEncryptedApiKeys(db: AppDatabase): Record<ProviderId, boolean> {
+  return {
+    openai: Boolean(db.getEncryptedApiKey('openai')),
+    groq: Boolean(db.getEncryptedApiKey('groq')),
+    gemini: Boolean(db.getEncryptedApiKey('gemini'))
+  }
 }
 
 function requireDatabase(): AppDatabase {

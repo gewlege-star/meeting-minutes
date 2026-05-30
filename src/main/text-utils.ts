@@ -61,3 +61,72 @@ export function applyGlossary(text: string, entries: GlossaryEntry[]): string {
 
   return result
 }
+
+/**
+ * Parse timestamp HH:MM:SS into seconds
+ */
+export function parseTimestamp(timestamp: string): number {
+  const parts = timestamp.split(':').map(Number)
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2]
+  }
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1]
+  }
+  return 0
+}
+
+/**
+ * Robust parser to convert corrected transcript text back into TranscriptSegment[]
+ */
+export function parseCorrectedTranscript(
+  responseText: string,
+  originalSegments: TranscriptSegment[]
+): { text: string; segments: TranscriptSegment[] } {
+  const lines = responseText.split('\n')
+  const newSegments: TranscriptSegment[] = []
+
+  const timestampRegex = /^\[(\d{2}:\d{2}:\d{2})\s*-\s*(\d{2}:\d{2}:\d{2})\]\s*(.*)$/
+
+  for (const line of lines) {
+    const match = line.trim().match(timestampRegex)
+    if (match) {
+      const startStr = match[1]
+      const endStr = match[2]
+      const text = match[3].trim()
+
+      newSegments.push({
+        index: newSegments.length,
+        startSeconds: parseTimestamp(startStr),
+        endSeconds: parseTimestamp(endStr),
+        text
+      })
+    }
+  }
+
+  if (newSegments.length === 0) {
+    // Fallback: line-by-line alignment
+    const cleanLines = lines
+      .map((l) => l.replace(/^\[\d{2}:\d{2}:\d{2}\s*-\s*\d{2}:\d{2}:\d{2}\]\s*/, '').trim())
+      .filter(Boolean)
+
+    if (cleanLines.length === originalSegments.length) {
+      const aligned = originalSegments.map((orig, i) => ({
+        ...orig,
+        text: cleanLines[i]
+      }))
+      const text = aligned.map((s) => s.text).join('\n')
+      return { text, segments: aligned }
+    } else {
+      // Fallback: restore original structure
+      const text = responseText.trim()
+      return {
+        text,
+        segments: originalSegments
+      }
+    }
+  }
+
+  const text = newSegments.map((s) => s.text).join('\n')
+  return { text, segments: newSegments }
+}

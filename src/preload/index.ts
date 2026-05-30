@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-import type { CustomTab, DesktopApi, SaveSettingsInput } from '../shared/contracts'
+import type { CustomTab, DesktopApi, SaveSettingsInput, ProviderId } from '../shared/contracts'
 
 const api: DesktopApi = {
   getAppState: () => ipcRenderer.invoke('app:get-state'),
   saveSettings: (input: SaveSettingsInput) => ipcRenderer.invoke('settings:save', input),
-  clearStoredApiKey: () => ipcRenderer.invoke('settings:clear-api-key'),
+  clearStoredApiKey: (provider: ProviderId) => ipcRenderer.invoke('settings:clear-api-key', provider),
   importMedia: () => ipcRenderer.invoke('media:import'),
   beginRecording: () => ipcRenderer.invoke('recording:begin'),
   appendRecordingChunk: (recordingId, chunk) =>
@@ -35,7 +35,14 @@ const api: DesktopApi = {
   getCustomTabResults: () => ipcRenderer.invoke('custom-tab:get-results'),
   saveCustomTabResults: (results: Record<string, string>) =>
     ipcRenderer.invoke('custom-tab:save-results', results),
-  writeClipboard: (text: string) => ipcRenderer.invoke('clipboard:write', text)
+  writeClipboard: (text: string) => ipcRenderer.invoke('clipboard:write', text),
+  updateTranscript: (jobId: string, transcriptText: string, segments: any[]) =>
+    ipcRenderer.invoke('job:update-transcript', jobId, transcriptText, segments),
+  correctTranscript: (jobId: string) => ipcRenderer.invoke('job:correct-transcript', jobId),
+  updateJobTrimming: (jobId: string, trimStart: number | null, trimEnd: number | null) =>
+    ipcRenderer.invoke('job:update-trimming', jobId, trimStart, trimEnd),
+  fetchModelsByProvider: (provider: ProviderId, apiKey: string, baseUrl: string) =>
+    ipcRenderer.invoke('settings:fetch-models', provider, apiKey, baseUrl)
 }
 
 if (process.contextIsolated) {

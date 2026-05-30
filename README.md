@@ -1,4 +1,4 @@
-# Meeting Minutes
+# Meeting Minutes (v0.1.0-beta)
 
 Desktop app for:
 
@@ -44,5 +44,5 @@ npm run build:win
 
 - Imported media and generated outputs live in the Electron user data directory.
 - Audio is normalized to a speech-friendly MP3 before transcription.
-- The transcription pipeline segments long recordings into 20-minute chunks before sending them to the provider.
+- The transcription pipeline segments long recordings into 2-minute chunks before sending them to the provider to avoid hallucinations and ensure responsive results.
 - Native Electron modules are rebuilt automatically before `npm run dev`.

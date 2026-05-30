@@ -29,6 +29,8 @@ interface JobRow {
   transcript_segments_json: string
   summary_json: string
   error_message: string | null
+  trim_start: number | null
+  trim_end: number | null
   created_at: string
   updated_at: string
 }
@@ -152,7 +154,7 @@ export class AppDatabase {
       })
   }
 
-  saveNormalizedPath(jobId: string, normalizedPath: string): void {
+  saveNormalizedPath(jobId: string, normalizedPath: string | null): void {
     this.db
       .prepare(
         `UPDATE jobs
@@ -183,6 +185,24 @@ export class AppDatabase {
         transcript_segments_json: JSON.stringify(transcript.segments),
         updated_at: new Date().toISOString()
       })
+  }
+
+  saveTrimming(jobId: string, trimStart: number | null, trimEnd: number | null): ProcessingJob {
+    this.db
+      .prepare(
+        `UPDATE jobs
+         SET trim_start = @trim_start,
+             trim_end = @trim_end,
+             updated_at = @updated_at
+         WHERE id = @id`
+      )
+      .run({
+        id: jobId,
+        trim_start: trimStart,
+        trim_end: trimEnd,
+        updated_at: new Date().toISOString()
+      })
+    return this.getJob(jobId)!
   }
 
   saveSummary(jobId: string, summary: SummaryBundle): void {
@@ -223,19 +243,24 @@ export class AppDatabase {
     return 'openai'
   }
 
-  getSettingsView(apiKeyConfigured: boolean): AppSettingsView {
-    const provider = this.getCurrentProvider()
-    const defaults = PROVIDER_DEFAULTS[provider]
+  getSettingsView(apiKeysConfigured: Record<ProviderId, boolean>): AppSettingsView {
+    const defaultOpenai = PROVIDER_DEFAULTS.openai
+    const defaultGroq = PROVIDER_DEFAULTS.groq
+    const defaultGemini = PROVIDER_DEFAULTS.gemini
 
     return {
-      provider,
-      apiKeyConfigured,
-      baseUrl: this.getRawSetting(settingKey(provider, 'baseUrl')) ?? defaults.baseUrl,
-      transcriptionModel:
-        this.getRawSetting(settingKey(provider, 'transcriptionModel')) ??
-        defaults.transcriptionModel,
-      summaryModel:
-        this.getRawSetting(settingKey(provider, 'summaryModel')) ?? defaults.summaryModel,
+      transcriptionProvider: (this.getRawSetting('transcriptionProvider') as ProviderId) || (this.getRawSetting('provider') as ProviderId) || 'openai',
+      summaryProvider: (this.getRawSetting('summaryProvider') as ProviderId) || (this.getRawSetting('provider') as ProviderId) || 'openai',
+      apiKeysConfigured,
+      openaiBaseUrl: this.getRawSetting(settingKey('openai', 'baseUrl')) ?? defaultOpenai.baseUrl,
+      groqBaseUrl: this.getRawSetting(settingKey('groq', 'baseUrl')) ?? defaultGroq.baseUrl,
+      geminiBaseUrl: this.getRawSetting(settingKey('gemini', 'baseUrl')) ?? defaultGemini.baseUrl,
+      openaiTranscriptionModel: this.getRawSetting(settingKey('openai', 'transcriptionModel')) ?? defaultOpenai.transcriptionModel,
+      groqTranscriptionModel: this.getRawSetting(settingKey('groq', 'transcriptionModel')) ?? defaultGroq.transcriptionModel,
+      geminiTranscriptionModel: this.getRawSetting(settingKey('gemini', 'transcriptionModel')) ?? defaultGemini.transcriptionModel,
+      openaiSummaryModel: this.getRawSetting(settingKey('openai', 'summaryModel')) ?? defaultOpenai.summaryModel,
+      groqSummaryModel: this.getRawSetting(settingKey('groq', 'summaryModel')) ?? defaultGroq.summaryModel,
+      geminiSummaryModel: this.getRawSetting(settingKey('gemini', 'summaryModel')) ?? defaultGemini.summaryModel,
       outputLanguage: this.getOutputLanguage(),
       showTimestamps: this.getShowTimestamps(),
       identifySpeakers: this.getIdentifySpeakers(),
@@ -244,8 +269,8 @@ export class AppDatabase {
     }
   }
 
-  getProviderConfig(apiKey: string | null): ProviderConfig {
-    const provider = this.getCurrentProvider()
+  getProviderConfig(apiKey: string | null, providerOverride?: ProviderId): ProviderConfig {
+    const provider = providerOverride || this.getCurrentProvider()
     const defaults = PROVIDER_DEFAULTS[provider]
 
     return {
@@ -265,20 +290,40 @@ export class AppDatabase {
   }
 
   saveProviderSettings(input: {
-    provider: ProviderId
-    baseUrl: string
-    transcriptionModel: string
-    summaryModel: string
+    transcriptionProvider: ProviderId
+    summaryProvider: ProviderId
+    openaiBaseUrl: string
+    groqBaseUrl: string
+    geminiBaseUrl: string
+    openaiTranscriptionModel: string
+    groqTranscriptionModel: string
+    geminiTranscriptionModel: string
+    openaiSummaryModel: string
+    groqSummaryModel: string
+    geminiSummaryModel: string
     outputLanguage: OutputLanguage
     showTimestamps: boolean
     identifySpeakers: boolean
     sectionPrompts: SectionPrompts
     exportDir: string
   }): void {
-    this.setRawSetting('provider', input.provider)
-    this.setRawSetting(settingKey(input.provider, 'baseUrl'), input.baseUrl)
-    this.setRawSetting(settingKey(input.provider, 'transcriptionModel'), input.transcriptionModel)
-    this.setRawSetting(settingKey(input.provider, 'summaryModel'), input.summaryModel)
+    this.setRawSetting('transcriptionProvider', input.transcriptionProvider)
+    this.setRawSetting('summaryProvider', input.summaryProvider)
+    // Save individually for legacy backward-compatible calls if any
+    this.setRawSetting('provider', input.transcriptionProvider)
+
+    this.setRawSetting(settingKey('openai', 'baseUrl'), input.openaiBaseUrl)
+    this.setRawSetting(settingKey('groq', 'baseUrl'), input.groqBaseUrl)
+    this.setRawSetting(settingKey('gemini', 'baseUrl'), input.geminiBaseUrl)
+
+    this.setRawSetting(settingKey('openai', 'transcriptionModel'), input.openaiTranscriptionModel)
+    this.setRawSetting(settingKey('groq', 'transcriptionModel'), input.groqTranscriptionModel)
+    this.setRawSetting(settingKey('gemini', 'transcriptionModel'), input.geminiTranscriptionModel)
+
+    this.setRawSetting(settingKey('openai', 'summaryModel'), input.openaiSummaryModel)
+    this.setRawSetting(settingKey('groq', 'summaryModel'), input.groqSummaryModel)
+    this.setRawSetting(settingKey('gemini', 'summaryModel'), input.geminiSummaryModel)
+
     this.setRawSetting('outputLanguage', input.outputLanguage)
     this.setRawSetting('showTimestamps', input.showTimestamps ? 'true' : 'false')
     this.setRawSetting('identifySpeakers', input.identifySpeakers ? 'true' : 'false')
@@ -462,6 +507,8 @@ export class AppDatabase {
         transcript_segments_json TEXT NOT NULL DEFAULT '[]',
         summary_json TEXT NOT NULL DEFAULT '{}',
         error_message TEXT,
+        trim_start REAL,
+        trim_end REAL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -473,6 +520,13 @@ export class AppDatabase {
         created_at TEXT NOT NULL
       );
     `)
+
+    try {
+      this.db.exec(`ALTER TABLE jobs ADD COLUMN trim_start REAL;`)
+    } catch (_) {}
+    try {
+      this.db.exec(`ALTER TABLE jobs ADD COLUMN trim_end REAL;`)
+    } catch (_) {}
   }
 }
 
@@ -502,6 +556,8 @@ function mapJobRow(row: JobRow): ProcessingJob {
     transcriptSegments,
     summary,
     errorMessage: row.error_message,
+    trimStart: row.trim_start !== undefined && row.trim_start !== null ? Number(row.trim_start) : null,
+    trimEnd: row.trim_end !== undefined && row.trim_end !== null ? Number(row.trim_end) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }

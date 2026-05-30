@@ -13,7 +13,7 @@ import {
   type TranscriptSegment
 } from '../shared/contracts'
 import type { ProviderConfig, TranscriptPayload } from './database'
-import { formatTimestampedTranscript } from './text-utils'
+import { formatTimestampedTranscript, parseCorrectedTranscript, splitSentences } from './text-utils'
 
 export class OpenAICompatibleProvider {
   private readonly client: OpenAI
@@ -33,12 +33,32 @@ export class OpenAICompatibleProvider {
     const transcriptSegments: TranscriptSegment[] = []
 
     for (const [index, chunkPath] of chunkPaths.entries()) {
-      const response = await this.client.audio.transcriptions.create({
-        file: createReadStream(chunkPath),
-        model: this.config.transcriptionModel,
-        response_format: 'verbose_json',
-        prompt: buildTranscriptionPrompt(this.config.outputLanguage, this.config.identifySpeakers)
-      })
+      let response
+      try {
+        response = await this.client.audio.transcriptions.create({
+          file: createReadStream(chunkPath),
+          model: this.config.transcriptionModel,
+          response_format: 'verbose_json',
+          prompt: buildTranscriptionPrompt(this.config.outputLanguage, this.config.identifySpeakers)
+        })
+      } catch (err: any) {
+        const errMsg = err && typeof err.message === 'string' ? err.message : ''
+        if (
+          errMsg.includes('verbose_json') ||
+          errMsg.includes('unsupported_value') ||
+          err?.status === 400
+        ) {
+          console.log(`[OpenAICompatibleProvider] Model does not support 'verbose_json', trying 'json' as fallback.`)
+          response = await this.client.audio.transcriptions.create({
+            file: createReadStream(chunkPath),
+            model: this.config.transcriptionModel,
+            response_format: 'json',
+            prompt: buildTranscriptionPrompt(this.config.outputLanguage, this.config.identifySpeakers)
+          })
+        } else {
+          throw err
+        }
+      }
 
       const baseOffset = index * AUDIO_CHUNK_SECONDS
       const rawSegments =
@@ -58,22 +78,39 @@ export class OpenAICompatibleProvider {
         })
 
         transcriptSegments.push(
-          ...validSegments.map((segment, segmentIndex) => ({
-            index: transcriptSegments.length + segmentIndex,
-            startSeconds: Number(segment.start ?? 0) + baseOffset,
-            endSeconds: Number(segment.end ?? 0) + baseOffset,
-            text: String(segment.text ?? '').trim()
-          }))
+          ...validSegments.map((segment, segmentIndex) => {
+            const s = segment as unknown as Record<string, unknown>
+            const avgLogprob = Number(s.avg_logprob ?? 0)
+            const temperature = Number(s.temperature ?? 0)
+            const lowConfidence = avgLogprob < -0.85 || temperature > 0.6
+            return {
+              index: transcriptSegments.length + segmentIndex,
+              startSeconds: Number(segment.start ?? 0) + baseOffset,
+              endSeconds: Number(segment.end ?? 0) + baseOffset,
+              text: String(segment.text ?? '').trim(),
+              lowConfidence
+            }
+          })
         )
       } else {
         const chunkText = response.text.trim()
         if (chunkText) {
-          transcriptSegments.push({
-            index: transcriptSegments.length,
-            startSeconds: baseOffset,
-            endSeconds: baseOffset + AUDIO_CHUNK_SECONDS,
-            text: chunkText
-          })
+          const sentences = splitSentences(chunkText)
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean)
+
+          if (sentences.length > 0) {
+            const segmentDuration = AUDIO_CHUNK_SECONDS / sentences.length
+            sentences.forEach((sentence, sIdx) => {
+              transcriptSegments.push({
+                index: transcriptSegments.length,
+                startSeconds: baseOffset + sIdx * segmentDuration,
+                endSeconds: baseOffset + (sIdx + 1) * segmentDuration,
+                text: sentence
+              })
+            })
+          }
         }
       }
     }
@@ -169,15 +206,61 @@ export class OpenAICompatibleProvider {
 
     return completion.choices[0]?.message.content?.trim() ?? ''
   }
+
+  async correctTranscript(transcript: string, segments: TranscriptSegment[]): Promise<TranscriptPayload> {
+    if (!transcript.trim()) {
+      throw new Error('Transcript is empty, so there is nothing to correct.')
+    }
+
+    const timestampedTranscript = formatTimestampedTranscript(segments) || transcript
+    const languageNote =
+      this.config.outputLanguage === 'auto'
+        ? 'Use the same language as the transcript.'
+        : this.config.outputLanguage === 'zh-TW'
+          ? 'Always respond in Taiwanese Traditional Chinese (繁體中文/正體中文), using Taiwan local terms and phrases. Ensure no Simplified Chinese characters are present.'
+          : `Always respond in ${OUTPUT_LANGUAGE_LABELS[this.config.outputLanguage]}.`
+
+    const speakerRule = this.config.identifySpeakers
+      ? '5. Since speaker identification (identifySpeakers) is enabled, you MUST analyze the conversational context, speaker flow, and back-and-forth Q&A, and prefix each line with a speaker identifier (e.g., "說話者 A: ", "說話者 B: " or "Speaker A: ", "Speaker B: " depending on context/language) of who is speaking. Do this line-by-line. If a line already contains a speaker label, keep or optimize/rename it. The correct line format is: "[HH:MM:SS - HH:MM:SS] Speaker name: <corrected text>"'
+      : '5. Do not add or invent speaker prefixes if they are not already present in the original transcript.'
+
+    const completion = await this.client.chat.completions.create({
+      model: this.config.summaryModel,
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert editor specializing in correcting voice transcriptions.
+Your task is to fix spelling, grammar, punctuation, and particularly homophones or voice transcription mistakes based on sentence context.
+
+CRITICAL RULES:
+1. You must maintain the exact structure of the transcript, keeping all timestamps "[HH:MM:SS - HH:MM:SS]" exactly intact. Do not change any timestamp.
+2. Only correct the text portion.
+3. Every output line must preserve the timestamp format: "[HH:MM:SS - HH:MM:SS] <corrected text>"
+4. Do not summarize, do not omit lines, and do not add any markdown fences, headers, comments, conversational fluff, or introduction. Return ONLY the line-by-line corrected timestamped transcript.
+${speakerRule}
+6. ${languageNote}`
+        },
+        {
+          role: 'user',
+          content: `Please correct the following timestamped transcript. Correct all homophones and typos while keeping timestamps exactly unmodified:\n\n${timestampedTranscript}`
+        }
+      ]
+    })
+
+    const content = completion.choices[0]?.message.content ?? ''
+    return parseCorrectedTranscript(content, segments)
+  }
 }
 
 function buildTranscriptionPrompt(language: OutputLanguage, identifySpeakers: boolean): string {
   const parts: string[] = []
-  if (language !== 'auto') {
+  if (language === 'zh-TW') {
+    parts.push('這是一篇繁體中文、正體中文的會議逐字稿記錄，標點符號一律使用全形，請用繁體字及台灣語境寫作（例如：使用消金、企金、專案，不使用簡體字。）。')
+  } else if (language !== 'auto') {
     parts.push(`Please output the transcription in ${OUTPUT_LANGUAGE_LABELS[language]}.`)
   }
   if (identifySpeakers) {
-    parts.push('Identify and label different speakers (e.g., Speaker 1, Speaker 2).')
+    parts.push('Identify and label different speakers (e.g., Speaker 1:, Speaker 2:).')
   }
   return parts.join(' ')
 }
