@@ -162,6 +162,35 @@ body {
   resize: none !important;
 }
 
+.edit-dialog-playback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--panel-border);
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.edit-dialog-ts {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-dialog-ctrl {
+  font-size: 13px;
+  padding: 3px 10px !important;
+  border-radius: 5px !important;
+}
+
+.edit-dialog-ctrl-active {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border-color: #3b82f6 !important;
+  color: #3b82f6 !important;
+}
+
 .panel-heading h2,
 .detail-header h2,
 .summary-card h3 {

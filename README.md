@@ -1,4 +1,4 @@
-# Meeting Minutes (v0.1.0-beta)
+# Meeting Minutes (v0.2.0-beta)
 
 Desktop app for:
 

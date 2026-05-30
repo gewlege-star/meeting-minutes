@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0-beta] - 2026-05-30
+
+### Added
+
+- **Glossary 重複項目偵測 (Duplicate Entry Detection)**: 新增詞彙表時，若來源詞彙（sourceTerm）已存在，立即顯示錯誤提示，防止重複建立或靜默覆蓋。
+- **Glossary 即時搜尋 (Glossary Search)**: 詞彙表對話框頂部新增搜尋輸入框，即時過濾顯示符合來源詞或目標詞的項目，方便快速確認詞彙是否重複。
+- **開發知識庫 ask-km.md**: 建立 `ask-km.md` 文件，記錄本專案開發過程中的重要問答知識（低信心標記原理、說話者識別方案、音檔切割最佳長度、版號邏輯等）。
+
 ## [0.1.0-beta] - 2026-05-30
 
 ### Added

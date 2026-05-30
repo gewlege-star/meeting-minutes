@@ -50,6 +50,7 @@ function App(): React.JSX.Element {
   const [glossaryEditId, setGlossaryEditId] = useState<string | null>(null)
   const [glossarySource, setGlossarySource] = useState('')
   const [glossaryTarget, setGlossaryTarget] = useState('')
+  const [glossarySearch, setGlossarySearch] = useState('')
   const [selectionPopup, setSelectionPopup] = useState<{ text: string; x: number; y: number } | null>(null)
   const [hideTimestamps, setHideTimestamps] = useState(false)
   const [hideSpeakers, setHideSpeakers] = useState(false)
@@ -68,6 +69,8 @@ function App(): React.JSX.Element {
   const [transcriptSearchIndex, setTranscriptSearchIndex] = useState(0)
   const [editingSegmentIndex, setEditingSegmentIndex] = useState<number | null>(null)
   const [editingSegmentText, setEditingSegmentText] = useState<string>('')
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false)
+  const [loopEditDialog, setLoopEditDialog] = useState(false)
 
   // Custom tabs
   const [customTabs, setCustomTabs] = useState<CustomTab[]>([])
@@ -90,6 +93,8 @@ function App(): React.JSX.Element {
   const transcriptMatchRef = useRef<HTMLElement | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const segmentEndRef = useRef<number | null>(null)
+  const segmentLoopStartRef = useRef<number | null>(null)
+  const loopModeRef = useRef(false)
   const tabContentRef = useRef<HTMLDivElement>(null)
 
   const jobs = useMemo(() => {
@@ -513,6 +518,7 @@ function App(): React.JSX.Element {
     setGlossarySource(selectionPopup.text)
     setGlossaryTarget('')
     setGlossaryEditId(null)
+    setGlossarySearch('')
     setSelectionPopup(null)
     glossaryDialogRef.current?.showModal()
   }
@@ -568,6 +574,15 @@ function App(): React.JSX.Element {
 
   async function addOrUpdateGlossaryEntry(): Promise<boolean> {
     if (!glossarySource.trim() || !glossaryTarget.trim()) return false
+
+    // Duplicate check: same sourceTerm already exists (unless editing that very entry)
+    const duplicate = glossary.find(
+      (e) => e.sourceTerm.toLowerCase() === glossarySource.trim().toLowerCase() && e.id !== glossaryEditId
+    )
+    if (duplicate) {
+      setErrorMessage(`「${glossarySource.trim()}」已存在於 Glossary 中（目標：${duplicate.targetTerm}）。如需修改，請先編輯該項目。`)
+      return false
+    }
 
     try {
       if (glossaryEditId) {
@@ -630,6 +645,7 @@ function App(): React.JSX.Element {
 
   function openGlossaryDialog(): void {
     void loadGlossary()
+    setGlossarySearch('')
     glossaryDialogRef.current?.showModal()
   }
 
@@ -1131,6 +1147,15 @@ function App(): React.JSX.Element {
           <span className="pill">{glossary.length} entries</span>
         </div>
 
+        <input
+          type="search"
+          className="tab-search-input"
+          placeholder="搜尋詞彙…"
+          value={glossarySearch}
+          onChange={(e) => setGlossarySearch(e.target.value)}
+          style={{ marginBottom: '10px' }}
+        />
+
         <div className="glossary-form">
           <input
             placeholder="Source term (e.g. 新界)"
@@ -1166,7 +1191,13 @@ function App(): React.JSX.Element {
           {glossary.length === 0 ? (
             <p className="empty-copy">No entries yet.</p>
           ) : (
-            glossary.map((entry) => (
+            glossary
+              .filter((e) =>
+                !glossarySearch.trim() ||
+                e.sourceTerm.toLowerCase().includes(glossarySearch.toLowerCase()) ||
+                e.targetTerm.toLowerCase().includes(glossarySearch.toLowerCase())
+              )
+              .map((entry) => (
               <div key={entry.id} className="glossary-item">
                 <span className="glossary-term">{entry.sourceTerm}</span>
                 <span className="glossary-arrow">→</span>
@@ -1293,6 +1324,54 @@ function App(): React.JSX.Element {
         <div className="settings-dialog-header">
           <h2>編輯逐字稿</h2>
         </div>
+        {/* Playback mini-toolbar */}
+        {(() => {
+          const seg = editingSegmentIndex !== null
+            ? selectedJob?.transcriptSegments.find(s => s.index === editingSegmentIndex)
+            : null
+          if (!seg || !audioUrl) return null
+          const seekTo = (offset: number) => {
+            const a = audioRef.current
+            if (!a) return
+            const next = Math.min(seg.endSeconds, Math.max(seg.startSeconds, a.currentTime + offset))
+            a.currentTime = next
+          }
+          const playSegment = () => {
+            const a = audioRef.current
+            if (!a) return
+            if (!a.paused) {
+              a.pause()
+              return
+            }
+            segmentEndRef.current = seg.endSeconds
+            segmentLoopStartRef.current = seg.startSeconds
+            if (a.currentTime < seg.startSeconds || a.currentTime >= seg.endSeconds) {
+              a.currentTime = seg.startSeconds
+            }
+            void a.play()
+          }
+          const toggleLoop = () => {
+            const next = !loopEditDialog
+            setLoopEditDialog(next)
+            loopModeRef.current = next
+          }
+          return (
+            <div className="edit-dialog-playback">
+              <span className="edit-dialog-ts">[{formatSec(seg.startSeconds)} – {formatSec(seg.endSeconds)}]</span>
+              <button className="ghost-button edit-dialog-ctrl" type="button" title="-15 秒" onClick={() => seekTo(-15)}>-15</button>
+              <button className="ghost-button edit-dialog-ctrl" type="button" title="+15 秒" onClick={() => seekTo(+15)}>+15</button>
+              <button className="ghost-button edit-dialog-ctrl" type="button" title={isAudioPlaying ? '暫停' : '播放此段'} onClick={playSegment}>
+                {isAudioPlaying ? '⏸' : '▶'}
+              </button>
+              <button
+                className={`ghost-button edit-dialog-ctrl ${loopEditDialog ? 'edit-dialog-ctrl-active' : ''}`}
+                type="button"
+                title={loopEditDialog ? '關閉循環' : '循環播放此段'}
+                onClick={toggleLoop}
+              >🔁</button>
+            </div>
+          )
+        })()}
         <div className="settings-grid">
           <label className="settings-grid-wide">
             <textarea
@@ -1448,11 +1527,18 @@ function App(): React.JSX.Element {
                         if (a) {
                           setCurrentAudioTime(a.currentTime)
                           if (segmentEndRef.current !== null && a.currentTime >= segmentEndRef.current) {
-                            a.pause()
-                            segmentEndRef.current = null
+                            if (loopModeRef.current && segmentLoopStartRef.current !== null) {
+                              a.currentTime = segmentLoopStartRef.current
+                              void a.play()
+                            } else {
+                              a.pause()
+                              segmentEndRef.current = null
+                            }
                           }
                         }
                       }}
+                      onPlay={() => setIsAudioPlaying(true)}
+                      onPause={() => setIsAudioPlaying(false)}
                     />
                   </div>
                   <div className="trimming-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', fontSize: '12px' }}>
