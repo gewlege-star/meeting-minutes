@@ -28,6 +28,7 @@ function App(): React.JSX.Element {
     summaryModel: PROVIDER_DEFAULTS.openai.summaryModel,
     outputLanguage: 'auto',
     showTimestamps: true,
+    identifySpeakers: false,
     sectionPrompts: { ...DEFAULT_SECTION_PROMPTS },
     exportDir: ''
   })
@@ -43,8 +44,9 @@ function App(): React.JSX.Element {
   const [selectionPopup, setSelectionPopup] = useState<{ text: string; x: number; y: number } | null>(null)
   const [hideTimestamps, setHideTimestamps] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<string>('plainSummary')
+  const [activeTab, setActiveTab] = useState<string>('transcript')
   const [currentAudioTime, setCurrentAudioTime] = useState(0)
+  const [tabSearchQuery, setTabSearchQuery] = useState('')
 
   // Custom tabs
   const [customTabs, setCustomTabs] = useState<CustomTab[]>([])
@@ -52,6 +54,8 @@ function App(): React.JSX.Element {
   const [promptDialogTabId, setPromptDialogTabId] = useState<string | null>(null)
   const [promptDialogName, setPromptDialogName] = useState('')
   const [promptDialogText, setPromptDialogText] = useState('')
+  const [renameDialogJobId, setRenameDialogJobId] = useState<string | null>(null)
+  const [renameDialogValue, setRenameDialogValue] = useState('')
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordingIdRef = useRef<string | null>(null)
@@ -60,7 +64,9 @@ function App(): React.JSX.Element {
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
   const glossaryDialogRef = useRef<HTMLDialogElement>(null)
   const promptDialogRef = useRef<HTMLDialogElement>(null)
+  const renameDialogRef = useRef<HTMLDialogElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const segmentEndRef = useRef<number | null>(null)
   const tabContentRef = useRef<HTMLDivElement>(null)
 
   const jobs = useMemo(() => {
@@ -96,6 +102,8 @@ function App(): React.JSX.Element {
       setAudioUrl(null)
       return
     }
+    setActiveTab('transcript')
+    setTabSearchQuery('')
     window.api.getAudioUrl(selectedJobId).then(setAudioUrl).catch(() => setAudioUrl(null))
     void window.api.saveLastJobId(selectedJobId)
   }, [selectedJobId])
@@ -123,10 +131,12 @@ function App(): React.JSX.Element {
         summaryModel: nextState.settings.summaryModel,
         outputLanguage: nextState.settings.outputLanguage,
         showTimestamps: nextState.settings.showTimestamps,
+        identifySpeakers: nextState.settings.identifySpeakers,
         sectionPrompts: nextState.settings.sectionPrompts,
         exportDir: nextState.settings.exportDir
       })
       setCustomTabs(nextState.customTabs ?? [])
+      setCustomTabResults(nextState.customTabResults ?? {})
       setSelectedJobId((current) => {
         if (preferredJobId && nextState.jobs.some((job) => job.id === preferredJobId)) {
           return preferredJobId
@@ -288,17 +298,30 @@ function App(): React.JSX.Element {
     })
   }
 
-  async function renameJob(jobId: string): Promise<void> {
+  function renameJob(jobId: string): void {
     const job = jobs.find((j) => j.id === jobId)
     if (!job) return
-    const newName = window.prompt('輸入新標題', job.sourceName)
-    if (!newName || newName.trim() === '' || newName.trim() === job.sourceName) return
+    setRenameDialogJobId(jobId)
+    setRenameDialogValue(job.sourceName)
+    renameDialogRef.current?.showModal()
+  }
+
+  async function submitRenameDialog(): Promise<void> {
+    if (!renameDialogJobId) return
+    const job = jobs.find((j) => j.id === renameDialogJobId)
+    const trimmed = renameDialogValue.trim()
+    if (!trimmed || trimmed === job?.sourceName) {
+      renameDialogRef.current?.close()
+      return
+    }
     try {
-      await window.api.renameJob(jobId, newName.trim())
-      await loadAppState(jobId)
+      await window.api.renameJob(renameDialogJobId, trimmed)
+      await loadAppState(renameDialogJobId)
     } catch (error) {
       setErrorMessage(formatError(error))
     }
+    renameDialogRef.current?.close()
+    setRenameDialogJobId(null)
   }
 
   function handleTextSelect(): void {
@@ -327,7 +350,7 @@ function App(): React.JSX.Element {
     }
 
     try {
-      await navigator.clipboard.writeText(value)
+      await window.api.writeClipboard(value)
       setInfoMessage(`${label} copied.`)
     } catch (error) {
       setErrorMessage(formatError(error))
@@ -382,8 +405,8 @@ function App(): React.JSX.Element {
     }
   }
 
-  async function addOrUpdateGlossaryEntry(): Promise<void> {
-    if (!glossarySource.trim() || !glossaryTarget.trim()) return
+  async function addOrUpdateGlossaryEntry(): Promise<boolean> {
+    if (!glossarySource.trim() || !glossaryTarget.trim()) return false
 
     try {
       if (glossaryEditId) {
@@ -395,8 +418,10 @@ function App(): React.JSX.Element {
       setGlossaryTarget('')
       setGlossaryEditId(null)
       await loadGlossary()
+      return true
     } catch (error) {
       setErrorMessage(formatError(error))
+      return false
     }
   }
 
@@ -447,13 +472,18 @@ function App(): React.JSX.Element {
     glossaryDialogRef.current?.showModal()
   }
 
+  function switchTab(key: string): void {
+    setActiveTab(key)
+    setTabSearchQuery('')
+  }
+
   function addCustomTab(): void {
     const id = crypto.randomUUID()
     const newTab: CustomTab = { id, name: `自訂 ${customTabs.length + 1}`, prompt: '' }
     const updated = [...customTabs, newTab]
     setCustomTabs(updated)
     void window.api.saveCustomTabs(updated)
-    setActiveTab(id)
+    switchTab(id)
   }
 
   function deleteCustomTab(tabId: string): void {
@@ -461,7 +491,7 @@ function App(): React.JSX.Element {
     setCustomTabs(updated)
     void window.api.saveCustomTabs(updated)
     if (activeTab === tabId) {
-      setActiveTab('plainSummary')
+      switchTab('plainSummary')
     }
   }
 
@@ -497,7 +527,11 @@ function App(): React.JSX.Element {
     await runAction('AI 解析中...', async () => {
       const result = await window.api.customAnalyze(selectedJob.id, tab.prompt)
       const key = `${selectedJob.id}-${tabId}`
-      setCustomTabResults((prev) => ({ ...prev, [key]: result }))
+      setCustomTabResults((prev) => {
+        const updated = { ...prev, [key]: result }
+        void window.api.saveCustomTabResults(updated)
+        return updated
+      })
     })
   }
 
@@ -698,6 +732,17 @@ function App(): React.JSX.Element {
             />
             <span>顯示時間區段 (Action items / Key decisions / Next steps 加上 [HH:MM:SS] 前綴)</span>
           </label>
+
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={settingsForm.identifySpeakers}
+              onChange={(event) =>
+                setSettingsForm((current) => ({ ...current, identifySpeakers: event.target.checked }))
+              }
+            />
+            <span>辨識發言者 (轉逐字稿時標註不同說話者)</span>
+          </label>
         </div>
 
         <details className="prompt-details">
@@ -790,6 +835,11 @@ function App(): React.JSX.Element {
             placeholder="Target term (e.g. 新借)"
             value={glossaryTarget}
             onChange={(e) => setGlossaryTarget(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                void addOrUpdateGlossaryEntry().then((ok) => { if (ok) glossaryDialogRef.current?.close() })
+              }
+            }}
           />
           <button
             className="secondary-button"
@@ -902,6 +952,36 @@ function App(): React.JSX.Element {
         </div>
       </dialog>
 
+      <dialog className="settings-dialog" ref={renameDialogRef}>
+        <div className="settings-dialog-header">
+          <h2>更改標題</h2>
+        </div>
+        <div className="settings-grid">
+          <label className="settings-grid-wide">
+            <span>新標題</span>
+            <input
+              value={renameDialogValue}
+              onChange={(e) => setRenameDialogValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void submitRenameDialog() }}
+              placeholder="輸入新標題"
+              autoFocus
+            />
+          </label>
+        </div>
+        <div className="toolbar settings-dialog-toolbar">
+          <button className="primary-button" onClick={() => void submitRenameDialog()} type="button">
+            確定
+          </button>
+          <button
+            className="ghost-button"
+            onClick={() => renameDialogRef.current?.close()}
+            type="button"
+          >
+            取消
+          </button>
+        </div>
+      </dialog>
+
       {errorMessage ? <div className="message-banner error-banner">{errorMessage}</div> : null}
       {infoMessage ? <div className="message-banner info-banner">{infoMessage}</div> : null}
       {busyAction ? <div className="message-banner busy-banner">{busyAction}</div> : null}
@@ -918,7 +998,7 @@ function App(): React.JSX.Element {
                <div>
                  <h2
                    className="editable-title"
-                   onClick={() => void renameJob(selectedJob.id)}
+                   onClick={() => renameJob(selectedJob.id)}
                    title="點擊更改標題"
                  >
                    {selectedJob.sourceName}
@@ -1003,18 +1083,24 @@ function App(): React.JSX.Element {
                     ref={audioRef}
                     onTimeUpdate={() => {
                       const a = audioRef.current
-                      if (a) setCurrentAudioTime(a.currentTime)
+                      if (a) {
+                        setCurrentAudioTime(a.currentTime)
+                        if (segmentEndRef.current !== null && a.currentTime >= segmentEndRef.current) {
+                          a.pause()
+                          segmentEndRef.current = null
+                        }
+                      }
                     }}
                   />
                 </div>
               )}
 
               <div className="tab-bar">
-                {([...summarySections.map((s) => ({ key: s.key, label: s.label })), { key: 'transcript', label: 'Transcript' }]).map((tab) => (
+                {([{ key: 'transcript', label: 'Transcript' }, ...summarySections.map((s) => ({ key: s.key, label: s.label }))]).map((tab) => (
                   <button
                     key={tab.key}
                     className={`tab-button ${activeTab === tab.key ? 'active' : ''}`}
-                    onClick={() => setActiveTab(tab.key)}
+                    onClick={() => switchTab(tab.key)}
                     type="button"
                   >
                     {tab.label}
@@ -1024,7 +1110,7 @@ function App(): React.JSX.Element {
                   <button
                     key={tab.id}
                     className={`tab-button tab-custom ${activeTab === tab.id ? 'active' : ''}`}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => switchTab(tab.id)}
                     type="button"
                   >
                     {tab.name}
@@ -1042,6 +1128,15 @@ function App(): React.JSX.Element {
                   +
                 </button>
               </div>
+              <div className="tab-search-bar">
+                <input
+                  type="search"
+                  className="tab-search-input"
+                  placeholder="搜尋關鍵字…"
+                  value={tabSearchQuery}
+                  onChange={(e) => setTabSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="tab-content" ref={tabContentRef}>
@@ -1058,7 +1153,9 @@ function App(): React.JSX.Element {
                   </div>
                   {selectedJob.transcriptSegments.length > 0 ? (
                     <div className="transcript-lines">
-                      {selectedJob.transcriptSegments.map((seg) => {
+                      {selectedJob.transcriptSegments
+                        .filter((seg) => !tabSearchQuery.trim() || seg.text.toLowerCase().includes(tabSearchQuery.toLowerCase()))
+                        .map((seg) => {
                         const active = currentAudioTime >= seg.startSeconds && currentAudioTime < seg.endSeconds
                         return (
                           <p
@@ -1066,10 +1163,14 @@ function App(): React.JSX.Element {
                             className={`transcript-line ${active ? 'active-line' : ''}`}
                             onDoubleClick={() => {
                               const a = audioRef.current
-                              if (a) { a.currentTime = seg.startSeconds; void a.play() }
+                              if (a) {
+                                segmentEndRef.current = seg.endSeconds
+                                a.currentTime = seg.startSeconds
+                                void a.play()
+                              }
                             }}
                           >
-                            <span className="line-ts">[{formatSec(seg.startSeconds)}]</span> {seg.text}
+                            <span className="line-ts">[{formatSec(seg.startSeconds)}]</span> {highlightText(seg.text, tabSearchQuery)}
                           </p>
                         )
                       })}
@@ -1119,9 +1220,12 @@ function App(): React.JSX.Element {
                       </div>
                       {result ? (
                         <div className="summary-lines">
-                          {result.split('\n').map((line, i) => (
-                            <p key={i} className="summary-line">{line}</p>
-                          ))}
+                          {result.replace(/<br\s*\/?>/gi, '\n').split('\n')
+                            .map((line, origIdx) => ({ line, origIdx }))
+                            .filter(({ line }) => !tabSearchQuery.trim() || line.toLowerCase().includes(tabSearchQuery.toLowerCase()))
+                            .map(({ line, origIdx }) => (
+                              <p key={origIdx} className="summary-line">{highlightText(line, tabSearchQuery)}</p>
+                            ))}
                         </div>
                       ) : (
                         <div className="summary-content">
@@ -1151,24 +1255,31 @@ function App(): React.JSX.Element {
                       </div>
                       {rawText ? (
                         <div className="summary-lines">
-                          {rawText.split('\n').map((line, i) => {
-                            const ts = parseLineTimestamp(line)
-                            const active = ts ? currentAudioTime >= ts.start && currentAudioTime < ts.end : false
-                            return (
-                              <p
-                                key={i}
-                                className={`summary-line ${active ? 'active-line' : ''}`}
-                                onDoubleClick={() => {
-                                  if (!ts) return
-                                  const a = audioRef.current
-                                  if (a) { a.currentTime = ts.start; void a.play() }
-                                }}
-                                style={ts ? { cursor: 'pointer' } : undefined}
-                              >
-                                {line}
-                              </p>
-                            )
-                          })}
+                          {rawText.replace(/<br\s*\/?>/gi, '\n').split('\n')
+                            .map((line, origIdx) => ({ line, origIdx }))
+                            .filter(({ line }) => !tabSearchQuery.trim() || line.toLowerCase().includes(tabSearchQuery.toLowerCase()))
+                            .map(({ line, origIdx }) => {
+                              const ts = parseLineTimestamp(line)
+                              const active = ts ? currentAudioTime >= ts.start && currentAudioTime < ts.end : false
+                              return (
+                                <p
+                                  key={origIdx}
+                                  className={`summary-line ${active ? 'active-line' : ''}`}
+                                  onDoubleClick={() => {
+                                    if (!ts) return
+                                    const a = audioRef.current
+                                    if (a) {
+                                      segmentEndRef.current = ts.end
+                                      a.currentTime = ts.start
+                                      void a.play()
+                                    }
+                                  }}
+                                  style={ts ? { cursor: 'pointer' } : undefined}
+                                >
+                                  {highlightText(line, tabSearchQuery)}
+                                </p>
+                              )
+                            })}
                         </div>
                       ) : (
                         <div className="summary-content">Not generated yet.</div>
@@ -1230,7 +1341,7 @@ function App(): React.JSX.Element {
                     </button>
                     <button
                       className="ghost-button rename-btn"
-                      onClick={(e) => { e.stopPropagation(); void renameJob(job.id) }}
+                      onClick={(e) => { e.stopPropagation(); renameJob(job.id) }}
                       type="button"
                       title="更改標題"
                     >
@@ -1359,6 +1470,15 @@ function formatBytes(value: number): string {
   }
 
   return `${size.toFixed(1)} ${units[unitIndex]}`
+}
+
+function highlightText(text: string, query: string): React.ReactNode {
+  if (!query.trim()) return text
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <mark key={i} className="search-highlight">{part}</mark> : part
+  )
 }
 
 export default App

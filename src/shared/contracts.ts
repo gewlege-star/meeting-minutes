@@ -127,6 +127,7 @@ export interface AppSettingsView {
   summaryModel: string
   outputLanguage: OutputLanguage
   showTimestamps: boolean
+  identifySpeakers: boolean
   sectionPrompts: SectionPrompts
   exportDir: string
 }
@@ -139,6 +140,7 @@ export interface SaveSettingsInput {
   summaryModel: string
   outputLanguage: OutputLanguage
   showTimestamps: boolean
+  identifySpeakers: boolean
   sectionPrompts: SectionPrompts
   exportDir: string
 }
@@ -154,6 +156,7 @@ export interface AppState {
   jobs: ProcessingJob[]
   lastJobId: string | null
   customTabs: CustomTab[]
+  customTabResults: Record<string, string>
 }
 
 export interface DesktopApi {
@@ -180,4 +183,7 @@ export interface DesktopApi {
   exportGlossaryCsv: () => Promise<string | null>
   customAnalyze: (jobId: string, prompt: string) => Promise<string>
   saveCustomTabs: (tabs: CustomTab[]) => Promise<void>
+  getCustomTabResults: () => Promise<Record<string, string>>
+  saveCustomTabResults: (results: Record<string, string>) => Promise<void>
+  writeClipboard: (text: string) => Promise<void>
 }

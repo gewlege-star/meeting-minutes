@@ -49,6 +49,7 @@ export interface ProviderConfig {
   summaryModel: string
   outputLanguage: OutputLanguage
   showTimestamps: boolean
+  identifySpeakers: boolean
   sectionPrompts: SectionPrompts
 }
 
@@ -237,6 +238,7 @@ export class AppDatabase {
         this.getRawSetting(settingKey(provider, 'summaryModel')) ?? defaults.summaryModel,
       outputLanguage: this.getOutputLanguage(),
       showTimestamps: this.getShowTimestamps(),
+      identifySpeakers: this.getIdentifySpeakers(),
       sectionPrompts: this.getSectionPrompts(),
       exportDir: this.getRawSetting('exportDir') ?? ''
     }
@@ -257,6 +259,7 @@ export class AppDatabase {
         this.getRawSetting(settingKey(provider, 'summaryModel')) ?? defaults.summaryModel,
       outputLanguage: this.getOutputLanguage(),
       showTimestamps: this.getShowTimestamps(),
+      identifySpeakers: this.getIdentifySpeakers(),
       sectionPrompts: this.getSectionPrompts()
     }
   }
@@ -268,6 +271,7 @@ export class AppDatabase {
     summaryModel: string
     outputLanguage: OutputLanguage
     showTimestamps: boolean
+    identifySpeakers: boolean
     sectionPrompts: SectionPrompts
     exportDir: string
   }): void {
@@ -277,6 +281,7 @@ export class AppDatabase {
     this.setRawSetting(settingKey(input.provider, 'summaryModel'), input.summaryModel)
     this.setRawSetting('outputLanguage', input.outputLanguage)
     this.setRawSetting('showTimestamps', input.showTimestamps ? 'true' : 'false')
+    this.setRawSetting('identifySpeakers', input.identifySpeakers ? 'true' : 'false')
     this.setRawSetting('sectionPrompts', JSON.stringify(input.sectionPrompts))
     this.setRawSetting('exportDir', input.exportDir)
   }
@@ -312,6 +317,10 @@ export class AppDatabase {
     const value = this.getRawSetting('showTimestamps')
     if (value === 'false') return false
     return true // default to true
+  }
+
+  getIdentifySpeakers(): boolean {
+    return this.getRawSetting('identifySpeakers') === 'true'
   }
 
   getSectionPrompts(): SectionPrompts {
@@ -397,6 +406,20 @@ export class AppDatabase {
 
   saveCustomTabs(tabs: CustomTab[]): void {
     this.setRawSetting('customTabs', JSON.stringify(tabs))
+  }
+
+  getCustomTabResults(): Record<string, string> {
+    const raw = this.getRawSetting('customTabResults')
+    if (!raw) return {}
+    try {
+      return JSON.parse(raw) as Record<string, string>
+    } catch {
+      return {}
+    }
+  }
+
+  saveCustomTabResults(results: Record<string, string>): void {
+    this.setRawSetting('customTabResults', JSON.stringify(results))
   }
 
   getRawSetting(key: string): string | null {

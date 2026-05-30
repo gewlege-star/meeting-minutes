@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises'
 import { extname } from 'path'
 
-import { GoogleGenAI, Type } from '@google/genai'
+import { GoogleGenAI } from '@google/genai'
 
 import {
   AUDIO_CHUNK_SECONDS,
@@ -63,46 +63,25 @@ export class GeminiProvider {
     const languageInstruction = buildLanguageInstruction(this.config.outputLanguage)
     const { sectionPrompts, showTimestamps } = this.config
 
+    const promptText = [
+      'Summarize the following timestamped meeting transcript.',
+      'The transcript includes timestamps in [HH:MM:SS - HH:MM:SS] format for each segment.',
+      'Return ONLY a valid JSON object (no markdown, no code fences) with exactly these string fields:',
+      `- plainSummary: ${sectionPrompts.plainSummary}`,
+      `- meetingMinutes: ${sectionPrompts.meetingMinutes}`,
+      `- actionItems: ${sectionPrompts.actionItems}${showTimestamps ? ', each starting with "- [HH:MM:SS - HH:MM:SS] "' : ''}`,
+      `- keyDecisions: ${sectionPrompts.keyDecisions}${showTimestamps ? ', each starting with "- [HH:MM:SS - HH:MM:SS] "' : ''}`,
+      `- nextSteps: ${sectionPrompts.nextSteps}${showTimestamps ? ', each starting with "- [HH:MM:SS - HH:MM:SS] "' : ''}`,
+      `Every field must contain relevant content. ${languageInstruction}`,
+      '',
+      '<transcript>',
+      timestampedTranscript,
+      '</transcript>'
+    ].join('\n')
+
     const response = await this.client.models.generateContent({
       model: this.config.summaryModel,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            plainSummary: { type: Type.STRING, description: 'Summary paragraph' },
-            meetingMinutes: { type: Type.STRING, description: 'Detailed meeting notes' },
-            actionItems: { type: Type.STRING, description: 'Action items list' },
-            keyDecisions: { type: Type.STRING, description: 'Key decisions list' },
-            nextSteps: { type: Type.STRING, description: 'Next steps list' }
-          },
-          required: ['plainSummary', 'meetingMinutes', 'actionItems', 'keyDecisions', 'nextSteps']
-        }
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: [
-                'Summarize the following timestamped meeting transcript.',
-                'The transcript includes timestamps in [HH:MM:SS - HH:MM:SS] format for each segment.',
-                'Return a JSON object with exactly these string fields:',
-                `- plainSummary: ${sectionPrompts.plainSummary}`,
-                `- meetingMinutes: ${sectionPrompts.meetingMinutes}`,
-                `- actionItems: ${sectionPrompts.actionItems}${showTimestamps ? ', each starting with "- [HH:MM:SS - HH:MM:SS] "' : ''}`,
-                `- keyDecisions: ${sectionPrompts.keyDecisions}${showTimestamps ? ', each starting with "- [HH:MM:SS - HH:MM:SS] "' : ''}`,
-                `- nextSteps: ${sectionPrompts.nextSteps}${showTimestamps ? ', each starting with "- [HH:MM:SS - HH:MM:SS] "' : ''}`,
-                `Every field must contain relevant content. ${languageInstruction}`,
-                '',
-                '<transcript>',
-                timestampedTranscript,
-                '</transcript>'
-              ].join('\n')
-            }
-          ]
-        }
-      ]
+      contents: [{ role: 'user', parts: [{ text: promptText }] }]
     })
 
     return parseSummaryBundle(extractGeminiText(response))
@@ -137,6 +116,9 @@ export class GeminiProvider {
     const languageInstruction = this.config.outputLanguage === 'auto'
       ? 'Keep the original language.'
       : `Output in ${OUTPUT_LANGUAGE_LABELS[this.config.outputLanguage]}.`
+    const speakerInstruction = this.config.identifySpeakers
+      ? 'Identify and label different speakers (e.g., Speaker 1:, Speaker 2:).'
+      : ''
 
     const response = await this.client.models.generateContent({
       model: this.config.transcriptionModel,
@@ -149,8 +131,9 @@ export class GeminiProvider {
                 'Transcribe this audio verbatim.',
                 'Return only the transcript text.',
                 languageInstruction,
+                speakerInstruction,
                 'Do not summarize.'
-              ].join(' ')
+              ].filter(Boolean).join(' ')
             },
             {
               inlineData: {

@@ -93,6 +93,34 @@ body {
   padding-top: 14px;
 }
 
+.tab-search-bar {
+  padding: 8px 0 2px;
+}
+
+.tab-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.tab-search-input:focus {
+  border-color: var(--panel-highlight, #3b82f6);
+}
+
+.search-highlight {
+  background: rgba(251, 191, 36, 0.4);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
 .panel-heading h2,
 .detail-header h2,
 .summary-card h3 {

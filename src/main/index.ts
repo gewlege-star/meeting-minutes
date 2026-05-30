@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, safeStorage, shell } from 'electron'
 import { createServer } from 'http'
 import type { AddressInfo } from 'net'
 import { dirname, join } from 'path'
@@ -176,7 +176,8 @@ function registerIpcHandlers(): void {
       settings: db.getSettingsView(hasEncryptedApiKey(db)),
       jobs: db.getJobs(),
       lastJobId: db.getRawSetting('lastJobId') || null,
-      customTabs: db.getCustomTabs()
+      customTabs: db.getCustomTabs(),
+      customTabResults: db.getCustomTabResults()
     }
   })
 
@@ -452,6 +453,14 @@ function registerIpcHandlers(): void {
     requireDatabase().saveCustomTabs(tabs)
   })
 
+  ipcMain.handle('custom-tab:get-results', async () => {
+    return requireDatabase().getCustomTabResults()
+  })
+
+  ipcMain.handle('custom-tab:save-results', async (_, results: Record<string, string>) => {
+    requireDatabase().saveCustomTabResults(results)
+  })
+
   ipcMain.handle('custom-tab:analyze', async (_, jobId: string, prompt: string) => {
     const db = requireDatabase()
     const job = db.getJob(jobId)
@@ -465,6 +474,10 @@ function registerIpcHandlers(): void {
     const result = await provider.analyzeWithPrompt(transcriptWithGlossary, prompt)
     return applyGlossary(result, glossary)
   })
+
+  ipcMain.handle('clipboard:write', (_, text: string) => {
+    clipboard.writeText(text)
+  })
 }
 
 function persistSettings(input: SaveSettingsInput): void {
@@ -476,6 +489,7 @@ function persistSettings(input: SaveSettingsInput): void {
     summaryModel: input.summaryModel.trim(),
     outputLanguage: input.outputLanguage,
     showTimestamps: input.showTimestamps,
+    identifySpeakers: input.identifySpeakers,
     sectionPrompts: input.sectionPrompts,
     exportDir: input.exportDir.trim()
   })

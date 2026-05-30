@@ -37,7 +37,7 @@ export class OpenAICompatibleProvider {
         file: createReadStream(chunkPath),
         model: this.config.transcriptionModel,
         response_format: 'verbose_json',
-        prompt: buildTranscriptionPrompt(this.config.outputLanguage)
+        prompt: buildTranscriptionPrompt(this.config.outputLanguage, this.config.identifySpeakers)
       })
 
       const baseOffset = index * AUDIO_CHUNK_SECONDS
@@ -91,7 +91,7 @@ export class OpenAICompatibleProvider {
 
     const timestampedTranscript = formatTimestampedTranscript(segments) || transcript
 
-    const responseFormat: OpenAI.ResponseFormatJSONSchema | OpenAI.ResponseFormatJSONObject =
+    const responseFormat: OpenAI.ResponseFormatJSONSchema | OpenAI.ResponseFormatJSONObject | undefined =
       this.config.provider === 'openai'
         ? {
             type: 'json_schema',
@@ -118,11 +118,12 @@ export class OpenAICompatibleProvider {
               }
             }
           }
-        : { type: 'json_object' }
+        : undefined
 
     const completion = await this.client.chat.completions.create({
       model: this.config.summaryModel,
-      response_format: responseFormat,
+      max_tokens: 8192,
+      ...(responseFormat ? { response_format: responseFormat } : {}),
       messages: [
         {
           role: 'system',
@@ -170,11 +171,15 @@ export class OpenAICompatibleProvider {
   }
 }
 
-function buildTranscriptionPrompt(language: OutputLanguage): string {
-  if (language === 'auto') {
-    return ''
+function buildTranscriptionPrompt(language: OutputLanguage, identifySpeakers: boolean): string {
+  const parts: string[] = []
+  if (language !== 'auto') {
+    parts.push(`Please output the transcription in ${OUTPUT_LANGUAGE_LABELS[language]}.`)
   }
-  return `Please output the transcription in ${OUTPUT_LANGUAGE_LABELS[language]}.`
+  if (identifySpeakers) {
+    parts.push('Identify and label different speakers (e.g., Speaker 1, Speaker 2).')
+  }
+  return parts.join(' ')
 }
 
 function buildSummarizationSystemPrompt(language: OutputLanguage, showTimestamps: boolean, prompts: SectionPrompts): string {
@@ -185,7 +190,7 @@ function buildSummarizationSystemPrompt(language: OutputLanguage, showTimestamps
   const lines = [
     'You produce structured meeting summaries.',
     'The transcript below includes timestamps in [HH:MM:SS - HH:MM:SS] format for each segment.',
-    'Return valid JSON with exactly these string fields:',
+    'Return ONLY a valid JSON object (no markdown fences, no explanation) with exactly these string fields:',
     `- plainSummary: ${prompts.plainSummary}`,
     `- meetingMinutes: ${prompts.meetingMinutes}`,
     `- actionItems: ${prompts.actionItems}${showTimestamps ? ', ' + timestampNote : ''}`,
@@ -204,11 +209,8 @@ function buildSummarizationSystemPrompt(language: OutputLanguage, showTimestamps
 }
 
 export function parseSummaryBundle(jsonText: string): SummaryBundle {
-  const cleaned = jsonText
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/, '')
-  const parsed = JSON.parse(cleaned) as unknown
+  const cleaned = extractJson(jsonText)
+  const parsed = safeJsonParse(cleaned)
   const summary = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
 
   return {
@@ -219,6 +221,59 @@ export function parseSummaryBundle(jsonText: string): SummaryBundle {
     keyDecisions: sanitizeSection(summary.keyDecisions),
     nextSteps: sanitizeSection(summary.nextSteps)
   }
+}
+
+/** Try to parse JSON, repairing truncated strings/objects if needed. */
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    // Attempt to repair truncated JSON by closing open strings and braces
+    let repaired = text
+    // Close any unterminated string
+    const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length
+    if (quoteCount % 2 !== 0) {
+      repaired += '"'
+    }
+    // Close any unclosed braces/brackets
+    let braces = 0
+    let brackets = 0
+    let inString = false
+    for (let i = 0; i < repaired.length; i++) {
+      const ch = repaired[i]
+      if (ch === '"' && (i === 0 || repaired[i - 1] !== '\\')) {
+        inString = !inString
+      }
+      if (!inString) {
+        if (ch === '{') braces++
+        else if (ch === '}') braces--
+        else if (ch === '[') brackets++
+        else if (ch === ']') brackets--
+      }
+    }
+    repaired += ']'.repeat(Math.max(0, brackets))
+    repaired += '}'.repeat(Math.max(0, braces))
+
+    try {
+      return JSON.parse(repaired)
+    } catch {
+      return {}
+    }
+  }
+}
+
+/** Extract the first JSON object from a string, stripping code fences and surrounding text. */
+function extractJson(text: string): string {
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fenceMatch) return fenceMatch[1].trim()
+
+  // Find the first { ... } block spanning the full depth
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start !== -1 && end > start) return text.slice(start, end + 1)
+
+  return text.trim()
 }
 
 function sanitizeSection(value: unknown): string {

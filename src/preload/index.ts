@@ -31,7 +31,11 @@ const api: DesktopApi = {
   exportGlossaryCsv: () => ipcRenderer.invoke('glossary:export-csv'),
   customAnalyze: (jobId: string, prompt: string) =>
     ipcRenderer.invoke('custom-tab:analyze', jobId, prompt),
-  saveCustomTabs: (tabs: CustomTab[]) => ipcRenderer.invoke('custom-tab:save', tabs)
+  saveCustomTabs: (tabs: CustomTab[]) => ipcRenderer.invoke('custom-tab:save', tabs),
+  getCustomTabResults: () => ipcRenderer.invoke('custom-tab:get-results'),
+  saveCustomTabResults: (results: Record<string, string>) =>
+    ipcRenderer.invoke('custom-tab:save-results', results),
+  writeClipboard: (text: string) => ipcRenderer.invoke('clipboard:write', text)
 }
 
 if (process.contextIsolated) {
